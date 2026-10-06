@@ -106,6 +106,8 @@ def main():
     parser.add_argument('--histogram-bins', type=int, default=48)
     parser.add_argument('--timings-only', action='store_true',
                         help='Keep existing figures and histogram comparison; rerun timings')
+    parser.add_argument('--skip-histograms', action='store_true',
+                        help='Use the separate 1000-event histogram_comparison.py job')
     parser.add_argument('--batch-events', type=int, default=64)
     parser.add_argument('--ntrial', type=int, nargs=2, default=(5, 10),
                         help='Random box trials for the first and second blocks')
@@ -123,7 +125,7 @@ def main():
     events, prepared, generation, preparation, probabilities = [], [], [], [], []
     settings = {'ntrial': list(args.ntrial), 'subdivisions': list(args.subdivisions),
                 'dataset_events': total, 'batch_events': args.batch_events,
-                'histogram_bins': args.histogram_bins, 'seed': '91 + event index',
+                'histogram_bins': None if args.skip_histograms else args.histogram_bins, 'seed': '91 + event index',
                 'status': 'running', 'block_order': [0, 1]}
     (out/'settings.json').write_text(json.dumps(settings, indent=2)+'\n')
     with warnings.catch_warnings():
@@ -158,35 +160,36 @@ def main():
         np.savetxt(out/'100v5.csv', np.asarray(cross).reshape(-1,3), delimiter=',',
                    header='query_event,indexed_event,overlap', comments='')
 
-        pairs = np.array([(i,j) for i in range(100) for j in range(i+1,100)], dtype=np.int64)
-        fast = overlap_NvN_pairs(prepare_events(prepared[:100]), pairs)
-        dense = []
-        histogram_values = sample_histogram_overlaps(folder/'ARAK_samples', pairs,
-                                                    args.histogram_bins)
-        for k,value in enumerate(histogram_values):
-            dense.append(value)
-            if (k+1) % 1000 == 0:
-                print(f'Histogram comparisons: {k+1} / {len(pairs)}', flush=True)
-        dense = np.array(dense)
-        np.savetxt(out/'histogram_comparison.csv', np.column_stack((pairs,fast,dense)),
-            delimiter=',', header='event_a,event_b,box_overlap,histogram_overlap', comments='')
-        fig,ax=plt.subplots(figsize=(8,7))
-        ax.scatter(dense,fast,s=12,alpha=.45)
-        limit=max(dense.max(),fast.max())
-        ax.plot([0,limit],[0,limit],color='coral',label='Equal overlap')
-        # Symlog retains pairs with zero in either estimate.
-        threshold=limit*1e-5 if limit else 1e-5
-        ax.set_xscale('symlog',linthresh=threshold); ax.set_yscale('symlog',linthresh=threshold)
-        # Omit the crowded decade tick next to zero while retaining actual zeros.
-        powers = np.arange(int(np.ceil(np.log10(threshold)))+1,
-                           int(np.ceil(np.log10(limit)))+1)
-        ticks = np.r_[0., 10.**powers]
-        labels = ['0'] + [rf'$10^{{{power}}}$' for power in powers]
-        ax.set_xticks(ticks, labels); ax.set_yticks(ticks, labels)
-        ax.set_xlabel('Dense sample histogram overlap'); ax.set_ylabel('Exact box overlap')
-        ax.set_title(f'100 events: all 4,950 pairs; {args.histogram_bins} bins per coordinate')
-        ax.legend(); fig.tight_layout(); fig.savefig(out/'histogram_comparison.jpg',dpi=200)
-        plt.close(fig)
+        if not args.skip_histograms:
+            pairs = np.array([(i,j) for i in range(100) for j in range(i+1,100)], dtype=np.int64)
+            fast = overlap_NvN_pairs(prepare_events(prepared[:100]), pairs)
+            dense = []
+            histogram_values = sample_histogram_overlaps(folder/'ARAK_samples', pairs,
+                                                        args.histogram_bins)
+            for k,value in enumerate(histogram_values):
+                dense.append(value)
+                if (k+1) % 1000 == 0:
+                    print(f'Histogram comparisons: {k+1} / {len(pairs)}', flush=True)
+            dense = np.array(dense)
+            np.savetxt(out/'histogram_comparison.csv', np.column_stack((pairs,fast,dense)),
+                delimiter=',', header='event_a,event_b,box_overlap,histogram_overlap', comments='')
+            fig,ax=plt.subplots(figsize=(8,7))
+            ax.scatter(dense,fast,s=12,alpha=.45)
+            limit=max(dense.max(),fast.max())
+            ax.plot([0,limit],[0,limit],color='coral',label='Equal overlap')
+            # Symlog retains pairs with zero in either estimate.
+            threshold=limit*1e-5 if limit else 1e-5
+            ax.set_xscale('symlog',linthresh=threshold); ax.set_yscale('symlog',linthresh=threshold)
+            # Omit the crowded decade tick next to zero while retaining actual zeros.
+            powers = np.arange(int(np.ceil(np.log10(threshold)))+1,
+                               int(np.ceil(np.log10(limit)))+1)
+            ticks = np.r_[0., 10.**powers]
+            labels = ['0'] + [rf'$10^{{{power}}}$' for power in powers]
+            ax.set_xticks(ticks, labels); ax.set_yticks(ticks, labels)
+            ax.set_xlabel('Dense sample histogram overlap'); ax.set_ylabel('Exact box overlap')
+            ax.set_title(f'100 events: all 4,950 pairs; {args.histogram_bins} bins per coordinate')
+            ax.legend(); fig.tight_layout(); fig.savefig(out/'histogram_comparison.jpg',dpi=200)
+            plt.close(fig)
 
     sizes=np.unique(np.geomspace(2,total,20).astype(int))
     generation=np.cumsum(generation); preparation=np.cumsum(preparation)
@@ -229,15 +232,8 @@ def main():
     with open(out/'timings.csv','w',newline='') as f:
         writer=csv.writer(f); writer.writerow(headers); writer.writerows(measurements)
     data=np.asarray(measurements)
-    fig,axes=plt.subplots(1,2,figsize=(16,6))
-    for ax, find_col, calc_col, title in zip(axes,(4,6),(5,7),('N within itself','One query vs N')):
-        for column,label in ((1,'Box generation (incl. mapped reads)'),(2,'C++ preparation'),
-                             (3,'Event index build'),(find_col,'Find pairs'),
-                             (calc_col,'Calculate filtered overlaps')):
-            ax.loglog(data[:,0],data[:,column],marker='o',label=label)
-        ax.set_xlabel('Number of events'); ax.set_ylabel('Wall time (s)'); ax.set_title(title)
-        ax.legend(fontsize=11); ax.grid(alpha=.2)
-    fig.tight_layout(); fig.savefig(out/'scaling.jpg',dpi=200); plt.close(fig)
+    from validation.analysis_plots import plot_costs
+    plot_costs({key:data[:,i] for i,key in enumerate(headers)}, out/'scaling.jpg')
     settings.update(status='complete', retained_probability_min=float(min(probabilities)),
                     retained_probability_mean=float(np.mean(probabilities)),
                     events_losing_over_point_one_percent=sum(p < .999-1e-12 for p in probabilities))

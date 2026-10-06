@@ -41,7 +41,15 @@ def load_results():
     for trials in ([1,1], [5,10]):
         rows = [r for r in study['configurations'] if r['ntrial']==trials]
         assert len({r['pairs'] for r in rows}) == 1
-    assert len(histogram) == 4950
+    histogram_settings_path = folder/'pair_finder_results/histogram_settings.json'
+    if histogram_settings_path.exists():
+        hs = json.loads(histogram_settings_path.read_text())
+        from validation.rerun_analysis import input_digest
+        assert hs['status']=='complete'
+        assert hs['input_metadata_sha256']==input_digest(folder/'ARAK_samples',hs['events'])
+        assert len(histogram)==hs['events']*(hs['events']-1)//2
+    else:
+        assert len(histogram)==4950
     return comparison, checks, study, settings, timings, histogram
 
 
@@ -71,7 +79,16 @@ def update_notebook(comparison, study, histogram):
 These figures and numerical results use the freshly recreated dataset and the
 same default five/ten box trials as the live examples. Colors in the 100v1 and
 100v5 plots indicate intersection in both full blocks, although only 2D boxes
-are displayed. Histogram comparisons include every unordered pair among 100 events.
+are displayed. Histogram comparisons include every unordered pair among 1,000 events,
+using 24 bins per axis.
+The legend gives degree-1 and degree-2 log fits to pairs positive in both estimates.
+Each cost component uses a degree-2 log fit on 100–10,000 events; their predicted
+seconds are summed for the total. Dashed curves
+show the mathematical continuation up to 100 million events.
+The NvN panel also shows PO2.0 (600 seconds per event plus one second per pair)
+and hybrid (box total plus PO2.0 preprocessing for all events plus one second
+per pair surviving box overlap). Beyond 10,000 events, hybrid holds the
+measured rejection fraction at 10,000 events fixed.
 
 ![100v1](pair_finder_results/100v1.jpg)
 
@@ -277,8 +294,17 @@ def write_report(result, checks, study, settings, timings, histogram):
         '![Controlled study](pair_finder_results/rejection_study.jpg)', '',
         '## Histograms, retained probability and visual checks', '']
     box = histogram['box_overlap']; dense = histogram['histogram_overlap']
-    lines += [f'All **{len(histogram):,}** unordered pairs among 100 events were compared '
-        'using 48 bins per coordinate on pair-shared grids.', '',
+    hs = json.loads((folder/'pair_finder_results/histogram_settings.json').read_text())
+    fits = json.loads((folder/'pair_finder_results/histogram_comparison_fits.json').read_text())
+    lines += [f'All **{len(histogram):,}** unordered pairs among {hs["events"]:,} events '
+        f'were compared using **{hs["bins"]} bins per coordinate** on pair-shared grids.', '',
+        'Histogram counts are computed by a serial C++ validation helper, checked '
+        'against NumPy histogramdd including internal/outer bin edges. Disjoint '
+        'histogram-bin ranges prove a zero sum and avoid opening unnecessary sample '
+        'files. Disjoint sample bounds alone are not used to reject histogram sums.', '',
+        f'Counting time is **{hs["histogram_s"]:.3f} s**; '
+        f'{hs["explicitly_counted_pairs"]:,} pairs require explicit counts and '
+        f'{hs["exact_zero_bin_rejections"]:,} are proven zero from their bin ranges.', '',
         '| Pair category | Count |', '| --- | ---: |',
         f'| Zero box integral | {np.count_nonzero(box==0):,} |',
         f'| Zero histogram integral | {np.count_nonzero(dense==0):,} |',
@@ -297,8 +323,72 @@ def write_report(result, checks, study, settings, timings, histogram):
         'The executed [playground](playground.ipynb) contains all sample, density, trial, '
         'partition, 1v1 box/histogram, 100v1, 100v5 and computational-cost figures. '
         'Every saved notebook output is refreshed using this dataset.', '',
-        '## Correctness tests', '', '| Script | Status | Job wall time (s) |',
-        '| --- | --- | ---: |']
+        ]
+    lines += ['', '## Fitted histogram-to-box relations', '',
+        f'Both fits use **{fits["fit_pairs"]:,}** pairs positive in both estimates. '
+        'Set x to the histogram integral and y to the box integral. NumPy polyfit '
+        'minimizes squared vertical residuals of log10(y) against log10(x); zero '
+        'estimates stay in the scatter but are excluded from these logarithmic fits.', '',
+        '| Degree | Coefficients, descending powers of log10(x) | RMS residual (dex) |',
+        '| ---: | --- | ---: |']
+    for fit in fits['fits']:
+        coefficients=', '.join(f'{c:.9g}' for c in fit['coefficients'])
+        lines.append(f'| {fit["degree"]} | {coefficients} | {fit["rms_log10_residual"]:.6f} |')
+    b,c=fits['fits'][0]['coefficients'];a,b2,c2=fits['fits'][1]['coefficients']
+    lines += ['', f'Degree 1: $y=10^{{{c:.6f}}}x^{{{b:.6f}}}$.', '',
+        f'Degree 2: $\\log_{{10}}y={a:.6f}(\\log_{{10}}x)^2'
+        f'{b2:+.6f}\\log_{{10}}x{c2:+.6f}$.', '',
+        'Degree 1 is a power law; degree 2 describes curvature in log space and '
+        'is not a single constant-exponent power law. Fits are drawn within the '
+        'observed positive histogram range, alongside y=x, with equations in the legend.', '',
+        '## Total computational cost and extrapolation', '',
+        'For each panel, total cost sums generation, C++ preparation, index build, '
+        'pair finding and filtered integration. One-vs-set includes building the '
+        'N-event dataset/index and one query. NumPy polyfit degree 2 fits '
+        'log10(seconds) for each component against log10(N) on 100 <= N <= 10,000. '
+        'The total is the sum of component predictions in seconds. Solid curves '
+        'cover the fitted range; dashed curves extend from 10,000 to 100 million.', '']
+    extrapolation=json.loads((folder/'pair_finder_results/cost_extrapolation.json').read_text())
+    lines += ['| Case | Component | a | b | c |', '| --- | --- | ---: | ---: | ---: |']
+    for panel in extrapolation['panels']:
+        for component in panel['components']:
+            a,b,c=component['coefficients']
+            lines.append(f'| {panel["title"]} | {component["label"]} | '
+                         f'{a:.9g} | {b:.9g} | {c:.9g} |')
+    lines += ['', 'Component model: log10(seconds) = a*log10(N)^2+b*log10(N)+c. '
+              'Total = sum of component seconds; no polynomial is fitted to the total.', '',
+              '| N | Within-set fit/extrapolation (s) | One-vs-set fit/extrapolation (s) |',
+              '| ---: | ---: | ---: |']
+    for n in (10000,100000,1000000,10000000,100000000):
+        values=[p['predicted_seconds'][str(n)] for p in extrapolation['panels']]
+        lines.append(f'| {n:,} | {values[0]:.6g} | {values[1]:.6g} |')
+    comparison = extrapolation['panels'][0]['comparison']
+    lines += ['', '### PO2.0 and hybrid comparison', '',
+        'With M=N(N-1)/2 unordered distinct pairs, PO2.0 costs 600N+M seconds. '
+        'Hybrid costs T_box(N)+600N+S(N) seconds, where S is the number of pairs '
+        'surviving exact box overlap. PO2.0 preprocessing covers every event in both cases.', '',
+        f'For measured datasets, S is the measured positive box pair count. '
+        f'Beyond 10,000 events, the rejection fraction 1-S/M is held fixed at '
+        f'{comparison["extrapolated_rejection_fraction"]:.9%}, the largest measured '
+        'dataset fraction. These curves use assumed PO2.0 costs, not PO2.0 timing measurements.', '',
+        '| N | PO2.0 (s) | hybrid (s) |', '| ---: | ---: | ---: |']
+    for n in (10000,100000,1000000,10000000,100000000):
+        lines.append(f'| {n:,} | {comparison["PO2.0_predicted_seconds"][str(n)]:.6g} | '
+                     f'{comparison["hybrid_predicted_seconds"][str(n)]:.6g} |')
+    lines += ['', 'Component predictions at 100 million events:', '',
+              '| Component | Within-set (s) | One-vs-set (s) |',
+              '| --- | ---: | ---: |']
+    for within, query in zip(*(panel['components'] for panel in extrapolation['panels'])):
+        lines.append(f'| {within["label"]} | '
+                     f'{within["predicted_seconds"]["100000000"]:.6g} | '
+                     f'{query["predicted_seconds"]["100000000"]:.6g} |')
+    lines += ['', 'Values beyond 10,000 events are mathematical extrapolations, '
+        'not measured or validated performance. Although generation dominates the measured total, '
+        'the faster-growing pair finding and integration stages can dominate at large N. '
+        'Their individual fits preserve this change in the summed prediction. '
+        'Memory, output storage and pair fraction can also change.', '']
+    lines += ['', '## Correctness tests', '', '| Script | Status | Job wall time (s) |',
+              '| --- | --- | ---: |']
     for job in checks['jobs']:
         command = job['command']
         if len(command)>1 and Path(command[1]).name.startswith('test_'):
@@ -313,11 +403,14 @@ def write_report(result, checks, study, settings, timings, histogram):
         '## Memory and scope', '',
         'Samples are processed one event at a time; pairwise histograms keep at most '
         'two sample maps. Prepared boxes and the index remain resident. Pair arrays '
-        'are consumed in batches instead of a dense matrix. Final indices use '
+        'are consumed in batches for large within-set measurements. The 1,000-event '
+        'histogram comparison retains its compact pair/value arrays, not raw samples. '
+        'Final indices use '
         '16 bytes per pair and values eight more; conversion can temporarily hold '
         'both C++ and NumPy index copies. Output can still grow quadratically.', '',
-        'The measurements cover the available dataset; no extrapolated '
-        '32,016- or 100-million-event timing is presented. Unit or separable weights '
+        'The measured timings cover the available dataset; no measured '
+        '32,016- or 100-million-event timing is claimed. Dashed curves are explicitly '
+        'extrapolated. Unit or separable weights '
         'are supported; general weights coupling blocks require another '
         'representation. Bilby/Feather adapters and distributed indexes are outside '
         'this implementation. Index calls are serial; shared concurrent access to '

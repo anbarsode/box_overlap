@@ -45,7 +45,8 @@ def main():
               'study_events': args.study_events, 'jobs': [],
               'input_metadata_sha256': input_digest(dataset, args.events)}
     output = folder / 'review_checks.json'
-    commands = [['-m', 'bo.build_overlap']]
+    commands = [['-m', 'bo.build_overlap'], ['-m', 'validation.histogram_overlap'],
+                ['validation/test_histogram.py'], ['validation/test_analysis_fits.py']]
     commands += [[f'validation/{name}'] for name in
                  ('test_event_boxes.py', 'test_overlap.py', 'test_pair_finder.py',
                   'test_sample_streaming.py', 'test_run.py')]
@@ -56,7 +57,9 @@ def main():
          '--batch-events', '64', '--output', 'validation/comparison_results'],
         ['validation/validate_pair_finder.py', '--max-events', str(args.events),
          '--ntrial', '5', '10', '--subdivisions', '0', '3',
-         '--batch-events', '64', '--histogram-bins', '48'],
+         '--batch-events', '64', '--skip-histograms'],
+        ['validation/histogram_comparison.py', '--events', str(min(1000,args.events)),
+         '--bins', '24'],
     ]
     log_folder = folder / 'analysis_logs'
     log_folder.mkdir(exist_ok=True)

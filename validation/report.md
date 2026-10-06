@@ -219,14 +219,18 @@ The second block uses a shared generator after first-block trials; its single-tr
 
 ## Histograms, retained probability and visual checks
 
-All **4,950** unordered pairs among 100 events were compared using 48 bins per coordinate on pair-shared grids.
+All **499,500** unordered pairs among 1,000 events were compared using **24 bins per coordinate** on pair-shared grids.
+
+Histogram counts are computed by a serial C++ validation helper, checked against NumPy histogramdd including internal/outer bin edges. Disjoint histogram-bin ranges prove a zero sum and avoid opening unnecessary sample files. Disjoint sample bounds alone are not used to reject histogram sums.
+
+Counting time is **79.470 s**; 48,672 pairs require explicit counts and 450,828 are proven zero from their bin ranges.
 
 | Pair category | Count |
 | --- | ---: |
-| Zero box integral | 4,756 |
-| Zero histogram integral | 4,835 |
-| Positive box, zero histogram | 83 |
-| Zero box, positive histogram | 4 |
+| Zero box integral | 481,578 |
+| Zero histogram integral | 484,565 |
+| Positive box, zero histogram | 4,492 |
+| Zero box, positive histogram | 1,505 |
 
 Histograms estimate sampled densities and are not ground truth for the box model. Bin width, finite samples and gaps inside uniform boxes affect agreement. Fine histograms may be more sparse. Intersection maps multiply full-dimensional densities before projecting, preserving the block integral.
 
@@ -235,6 +239,76 @@ Mean retained event probability is **0.999767452691**, minimum **0.998700400000*
 ![Histogram comparison](pair_finder_results/histogram_comparison.jpg)
 
 The executed [playground](playground.ipynb) contains all sample, density, trial, partition, 1v1 box/histogram, 100v1, 100v5 and computational-cost figures. Every saved notebook output is refreshed using this dataset.
+
+
+## Fitted histogram-to-box relations
+
+Both fits use **13,430** pairs positive in both estimates. Set x to the histogram integral and y to the box integral. NumPy polyfit minimizes squared vertical residuals of log10(y) against log10(x); zero estimates stay in the scatter but are excluded from these logarithmic fits.
+
+| Degree | Coefficients, descending powers of log10(x) | RMS residual (dex) |
+| ---: | --- | ---: |
+| 1 | 0.589994209, 0.020239652 | 0.583628 |
+| 2 | 0.00341413873, 0.612168336, 0.0430794043 | 0.583385 |
+
+Degree 1: $y=10^{0.020240}x^{0.589994}$.
+
+Degree 2: $\log_{10}y=0.003414(\log_{10}x)^2+0.612168\log_{10}x+0.043079$.
+
+Degree 1 is a power law; degree 2 describes curvature in log space and is not a single constant-exponent power law. Fits are drawn within the observed positive histogram range, alongside y=x, with equations in the legend.
+
+## Total computational cost and extrapolation
+
+For each panel, total cost sums generation, C++ preparation, index build, pair finding and filtered integration. One-vs-set includes building the N-event dataset/index and one query. NumPy polyfit degree 2 fits log10(seconds) for each component against log10(N) on 100 <= N <= 10,000. The total is the sum of component predictions in seconds. Solid curves cover the fitted range; dashed curves extend from 10,000 to 100 million.
+
+| Case | Component | a | b | c |
+| --- | --- | ---: | ---: | ---: |
+| N within itself | Generate boxes | -0.00743139628 | 1.05166564 | -1.66232793 |
+| N within itself | Prepare C++ | 0.0667127961 | 0.575599138 | -3.49157106 |
+| N within itself | Build index | 0.0145321472 | 0.873068756 | -3.92705604 |
+| N within itself | Find pairs | 0.0671396514 | 1.55539374 | -6.3125364 |
+| N within itself | Integrate | 0.0141394216 | 1.92974012 | -6.63732878 |
+| One query vs N | Generate boxes | -0.00743139628 | 1.05166564 | -1.66232793 |
+| One query vs N | Prepare C++ | 0.0667127961 | 0.575599138 | -3.49157106 |
+| One query vs N | Build index | 0.0145321472 | 0.873068756 | -3.92705604 |
+| One query vs N | Find pairs | 0.0687697976 | 0.242998552 | -4.74574889 |
+| One query vs N | Integrate | 0.0593855402 | 0.353193512 | -4.68027724 |
+
+Component model: log10(seconds) = a*log10(N)^2+b*log10(N)+c. Total = sum of component seconds; no polynomial is fitted to the total.
+
+| N | Within-set fit/extrapolation (s) | One-vs-set fit/extrapolation (s) |
+| ---: | ---: | ---: |
+| 10,000 | 297.66 | 267.728 |
+| 100,000 | 6295.68 | 2589.39 |
+| 1,000,000 | 579653 | 24295.7 |
+| 10,000,000 | 1.10134e+08 | 223569 |
+| 100,000,000 | 3.18421e+10 | 2.13664e+06 |
+
+### PO2.0 and hybrid comparison
+
+With M=N(N-1)/2 unordered distinct pairs, PO2.0 costs 600N+M seconds. Hybrid costs T_box(N)+600N+S(N) seconds, where S is the number of pairs surviving exact box overlap. PO2.0 preprocessing covers every event in both cases.
+
+For measured datasets, S is the measured positive box pair count. Beyond 10,000 events, the rejection fraction 1-S/M is held fixed at 96.386362636%, the largest measured dataset fraction. These curves use assumed PO2.0 costs, not PO2.0 timing measurements.
+
+| N | PO2.0 (s) | hybrid (s) |
+| ---: | ---: | ---: |
+| 10,000 | 5.5995e+07 | 7.80694e+06 |
+| 100,000 | 5.05995e+09 | 2.40686e+08 |
+| 1,000,000 | 5.006e+11 | 1.86687e+10 |
+| 10,000,000 | 5.0006e+13 | 1.81293e+12 |
+| 100,000,000 | 5.00006e+15 | 1.80774e+14 |
+
+Component predictions at 100 million events:
+
+| Component | Within-set (s) | One-vs-set (s) |
+| --- | ---: | ---: |
+| Generate boxes | 1.88533e+06 | 1.88533e+06 |
+| Prepare C++ | 241458 | 241458 |
+| Build index | 9717.43 | 9717.43 |
+| Find pairs | 2.6764e+10 | 39.7655 |
+| Integrate | 5.07592e+09 | 88.2969 |
+
+Values beyond 10,000 events are mathematical extrapolations, not measured or validated performance. Although generation dominates the measured total, the faster-growing pair finding and integration stages can dominate at large N. Their individual fits preserve this change in the summed prediction. Memory, output storage and pair fraction can also change.
+
 
 ## Correctness tests
 
@@ -245,14 +319,16 @@ The executed [playground](playground.ipynb) contains all sample, density, trial,
 | test_pair_finder.py | Passed | 4.443 |
 | test_sample_streaming.py | Passed | 0.276 |
 | test_run.py | Passed | 0.253 |
+| test_histogram.py | Passed | 0.472 |
+| test_analysis_fits.py | Passed | 2.080 |
 
 Independent checks cover the full Cartesian separator procedure, disjointness, singleton removal, trial winners, probability warnings, binary round trips, alternate block dimensions, nonmonotonic sorted-loop upper bounds, boundary contact, effective weights, all four integral interfaces, partition cuts, consolidation, both check orders, selected detection boxes, empty inputs, bounded raw-sample loading, saved jobs and original event-ID mapping. Synthetic loss warnings are expected.
 
 ## Memory and scope
 
-Samples are processed one event at a time; pairwise histograms keep at most two sample maps. Prepared boxes and the index remain resident. Pair arrays are consumed in batches instead of a dense matrix. Final indices use 16 bytes per pair and values eight more; conversion can temporarily hold both C++ and NumPy index copies. Output can still grow quadratically.
+Samples are processed one event at a time; pairwise histograms keep at most two sample maps. Prepared boxes and the index remain resident. Pair arrays are consumed in batches for large within-set measurements. The 1,000-event histogram comparison retains its compact pair/value arrays, not raw samples. Final indices use 16 bytes per pair and values eight more; conversion can temporarily hold both C++ and NumPy index copies. Output can still grow quadratically.
 
-The measurements cover the available dataset; no extrapolated 32,016- or 100-million-event timing is presented. Unit or separable weights are supported; general weights coupling blocks require another representation. Bilby/Feather adapters and distributed indexes are outside this implementation. Index calls are serial; shared concurrent access to the latest-call candidate counter is not supported.
+The measured timings cover the available dataset; no measured 32,016- or 100-million-event timing is claimed. Dashed curves are explicitly extrapolated. Unit or separable weights are supported; general weights coupling blocks require another representation. Bilby/Feather adapters and distributed indexes are outside this implementation. Index calls are serial; shared concurrent access to the latest-call candidate counter is not supported.
 
 Plots use JPG at 200 dpi. Install `dvipng` and a Times font separately for the requested LaTeX/font style; missing components use the documented fallback.
 

@@ -199,6 +199,8 @@ python validation/test_overlap.py
 python validation/test_pair_finder.py
 python validation/test_sample_streaming.py
 python validation/test_run.py
+python -m validation.histogram_overlap
+python validation/test_histogram.py
 ```
 
 Expected warnings in synthetic tests exercise probability loss and invalid-volume
@@ -219,9 +221,9 @@ After finishing dataset creation, run one command from the project root:
 python validation/rerun_analysis.py --events 10000 --study-events 1000
 ```
 
-This rebuilds the extension, runs all five correctness scripts, compares trial
+This rebuilds the extension, runs the correctness scripts and the NumPy histogram-reference checks, compares trial
 counts and block orders, compares 1/2/4/8 groups on identical boxes, independently
-calculates every unordered pair, and regenerates the histogram/examples/scaling
+calculates every unordered pair, and regenerates the 1,000-event/24-bin histogram, examples, and scaling
 measurements. Jobs run sequentially so timing is not distorted by competing
 analysis jobs. All notebook outputs and the single report are refreshed at the end.
 The metadata digest before and after checks that samples were not changed.
@@ -253,10 +255,12 @@ python validation/update_results.py
 
 ```bash
 python validation/validate_pair_finder.py --max-events 10000 \
-    --ntrial 5 10 --subdivisions 0 3 --batch-events 64 --histogram-bins 48
+    --ntrial 5 10 --subdivisions 0 3 --batch-events 64 --skip-histograms
 python validation/rejection_study.py --events 1000
 python validation/compare_rejection.py --events 10000 --compare-levels 1 2 3 \
     --ntrial 5 10 --batch-events 64 --output validation/comparison_results
+python -m validation.histogram_overlap
+python validation/histogram_comparison.py --events 1000 --bins 24
 python validation/summarize_cost.py
 ```
 
@@ -275,3 +279,36 @@ to avoid repeating box generation. Histogram grids grow as `bins**3` in 3D and
 can become sparse; they are not ground truth for the box approximation.
 Saved figures use JPG at 200 dpi. Missing LaTeX components or Times fonts print
 installation guidance; install them separately.
+
+### Histogram fits and total-cost extrapolation
+
+`histogram_comparison.py` compares all unordered pairs among 1,000 events using
+24 bins per coordinate (half the previous 48). It uses exact dense histogram
+counts on pair-shared NumPy edges. Proven disjoint bin ranges skip sample reads
+without changing the histogram sum; all pairs appear in the output CSV.
+The serial helper is compiled with the installed pybind11/C++17 tools and checked
+against NumPy, including samples on/next to edges and shared coarse bins.
+
+Fits use pairs positive in both estimates, with histogram integral x and box
+integral y. `np.polyfit(log10(x), log10(y), degree)` uses degrees 1 and 2;
+zero estimates remain visible in the plot but are excluded from logarithms.
+The degree-1 fit is a power law, while degree 2 adds log-space curvature.
+Coefficients and residuals are saved in `histogram_comparison_fits.json`.
+
+`summarize_cost.py` redraws the saved cost measurements and fits each of the five
+stages separately: generation, C++ preparation, index construction, pair finding,
+and integration. Each fit uses `np.polyfit(log10(N), log10(stage_seconds), 2)`
+for 100 <= N <= 10,000. Component curves extend to 100 million events with dashed
+lines. The total is the sum of the predicted component times in seconds, so a
+currently small but quadratic stage can dominate at large N. No fit is made to
+the measured total. `cost_extrapolation.json` saves each component's coefficients,
+residuals and predictions, together with summed predictions for both query modes.
+These are mathematical continuations, not measured or validated large-dataset costs.
+
+The NvN panel also compares `PO2.0` and `hybrid`, assuming 600 seconds of PO2.0
+preprocessing per event and 1 second per unordered distinct pair. PO2.0 uses all
+N(N-1)/2 pairs. Hybrid adds the box total, PO2.0 preprocessing for all events,
+and PO2.0 pair calculations on pairs **surviving box overlap**. The measured
+surviving count is `NvN_pairs`; extrapolation holds the largest
+measured dataset's rejection fraction fixed. Comparison assumptions and values
+are saved under `comparison` in the NvN panel of `cost_extrapolation.json`.
