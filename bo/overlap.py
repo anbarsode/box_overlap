@@ -20,7 +20,12 @@ def _core():
 
 
 def prepare_event(event: EventBoxes):
-    """Copy boxes into C++, caching volumes and overall block bounds once."""
+    """Return a C++ snapshot of an EventBoxes or an already prepared event.
+
+    Bounds, densities and weights are copied; inverse volumes and global bounds
+    are cached. Reuse the snapshot for many comparisons. Editing Python arrays
+    does not update it. Empty blocks are supported and never geometrically match.
+    """
     core = _core()
     if isinstance(event, core.PreparedEvent):
         return event
@@ -29,7 +34,11 @@ def prepare_event(event: EventBoxes):
 
 
 def prepare_events(events):
-    """Prepare a reusable event collection; existing prepared collections pass through."""
+    """Prepare an iterable of events, preserving its order as zero-based indices.
+
+    Ordinary EventBoxes are copied; prepared events are reused without box copies.
+    An existing prepared collection passes through. No raw samples are stored.
+    """
     core = _core()
     if isinstance(events, core.PreparedEvents):
         return events
@@ -37,7 +46,7 @@ def prepare_events(events):
 
 
 def overlap_1v1(event_a, event_b) -> float:
-    """Return the weighted overlap of two events, checking the second block first."""
+    """Return the weighted overlap of two events, checking the first block first."""
     return _core().overlap_1v1(prepare_event(event_a), prepare_event(event_b))
 
 
@@ -72,8 +81,24 @@ def overlap_1vN(event, other_events) -> np.ndarray:
     return _core().overlap_1vN(prepare_event(event), prepare_events(other_events))
 
 
-def build_index(events):
-    """Build a tree over both blocks' event bounds for geometry-only filtering.
+def build_index(
+    events,
+    subdivisions: tuple[int, int] = (0, 3),
+    block_order: tuple[int, int] = (0, 1),
+):
+    """Build a tree over enclosing block partitions for geometry-only filtering.
+
+    ``subdivisions`` sets levels per block: each level bisects every group.
+    Zero uses one overall bound; default (0, 3) leaves the first block whole
+    and creates up to eight groups for the second. Each split minimises summed
+    enclosing hypervolume over center-ordered cuts (see README). The index
+    contains Cartesian combinations when both blocks are subdivided. Duplicate
+    candidates are consolidated before exact sub-box checks. An existing index
+    passes through with its original settings; rebuild from events to change them.
+
+    ``block_order=(0,1)`` checks the first (normally 3D) block before the
+    second (normally 2D), in both tree-coordinate and exact sub-box checks.
+    Use (1,0) to compare the opposite order on the same boxes.
 
     Supply all boxes, or separate detection events containing selected boxes.
     Index indices always refer to the supplied event order. The index owns its
@@ -82,7 +107,7 @@ def build_index(events):
     core = _core()
     if isinstance(events, core.EventIndex):
         return events
-    return core.EventIndex(prepare_events(events))
+    return core.EventIndex(prepare_events(events), subdivisions, block_order)
 
 
 def find_1vN(event, events_or_index) -> np.ndarray:
@@ -112,6 +137,9 @@ def find_NvN_batches(events_or_index, batch_events: int = 64):
     Consume each batch before requesting the next to bound pair output memory.
     Concatenating the batches gives exactly find_NvN, in the same order. Batch
     storage depends on the number of matches, at worst batch_events*N pairs.
+    The NumPy output uses 16 bytes per pair; conversion temporarily holds a C++
+    copy too. Integration adds an 8-byte value per pair. Do not collect batches
+    into a list when the complete matching output is too large for memory.
     """
     if batch_events <= 0:
         raise ValueError("batch_events must be positive")
@@ -119,3 +147,24 @@ def find_NvN_batches(events_or_index, batch_events: int = 64):
     core = _core()
     for start in range(0, len(index), batch_events):
         yield core.find_NvN_range(index, start, min(start+batch_events, len(index)))
+
+
+def partition_bounds(event, block: int = 1, subdivisions: int = 3) -> np.ndarray:
+    """Return enclosing partition rows [lower, upper] for inspection or plotting.
+
+    Zero levels returns the overall bound. Empty blocks return no rows.
+    L levels produce at most 2**L groups, capped by the number of boxes. Bounds
+    can overlap; the original
+    density boxes remain disjoint and are used for all integral calculations.
+    """
+    return _core().partition_bounds(prepare_event(event), block, subdivisions)
+
+
+def find_candidate_1vN(event, events_or_index) -> np.ndarray:
+    """Return unique event indices passing partition bounds, before exact checks.
+
+    Useful for measuring rejection efficiency. This is a superset of find_1vN;
+    candidates can have no actual sub-box intersection. No density or weight is
+    used. Supply an explicit index to select partition settings.
+    """
+    return _core().find_candidate_1vN(prepare_event(event), build_index(events_or_index))

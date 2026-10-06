@@ -18,7 +18,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from bo import (load_event_boxes, make_boxes, make_event_boxes, pick_centers,
-                save_event_boxes)
+                save_event_boxes, make_box_trials)
 
 
 def reference_boxes(samples, centers, weight_function=None):
@@ -127,7 +127,7 @@ def test_arak_event():
     """Use a supplied five-dimensional event and verify file round-trip."""
     samples = np.load(Path(__file__).parent / "ARAK_samples" / "event_0.npy")
     rng = np.random.default_rng(138)
-    event = make_event_boxes(samples, n_centers=(5, 8), rng=rng)
+    event = make_event_boxes(samples, n_centers=(5, 8), rng=rng, ntrial=(1, 1))
     first, second = event
     np.testing.assert_allclose(event.retained_probability,
                                first.retained_probability * second.retained_probability)
@@ -170,7 +170,7 @@ def test_configurable_block_dimensions():
     for dimensions in ((2, 3), (1, 3), (2, 4)):
         samples = rng.normal(size=(2000, sum(dimensions)))
         event = make_event_boxes(samples, n_centers=(3, 3),
-                                 rng=np.random.default_rng(18), block_dimensions=dimensions)
+                                 rng=np.random.default_rng(18), block_dimensions=dimensions, ntrial=(1, 1))
         assert tuple(b.dimension for b in event.blocks) == dimensions
         choices = np.random.default_rng(18)
         d0 = dimensions[0]
@@ -187,13 +187,59 @@ def test_retained_probability_warning():
                         [2., 2., 2., 2., 2.]])
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        event = make_event_boxes(samples, n_centers=(2, 1), rng=np.random.default_rng(4))
+        event = make_event_boxes(samples, n_centers=(2, 1), rng=np.random.default_rng(4), ntrial=(1, 1))
     np.testing.assert_allclose(event.retained_probability, 2. / 3.)
     assert len(caught) == 1
     assert "more than 0.1% was discarded" in str(caught[0].message)
 
 
+
+def test_trial_selection():
+    """Compare the winner against separately constructed random grids."""
+    samples = np.random.default_rng(8).normal(size=(1800, 5))
+    for dimension, trials in ((3, 5), (2, 10)):
+        block = samples[:, :dimension]
+        choices = np.random.default_rng(138)
+        candidates, centers = [], []
+        for _ in range(trials):
+            centers.append(pick_centers(block, 5, choices))
+            candidates.append(make_boxes(block, centers[-1]))
+        volumes = np.array([np.prod(b.upper-b.lower, axis=1).sum() for b in candidates])
+        result = make_box_trials(block, 5, rng=np.random.default_rng(138))
+        winner = int(np.argmin(volumes))
+        assert result.selected_trial == winner
+        np.testing.assert_array_equal(result.hypervolumes, volumes)
+        np.testing.assert_array_equal(result.boxes.rows(), candidates[winner].rows())
+        np.testing.assert_array_equal(result.centers, centers[winner])
+        check_density_and_disjointness(result.boxes)
+        custom = make_box_trials(block, 5, ntrial=3, rng=np.random.default_rng(138))
+        assert len(custom.hypervolumes) == 3
+        np.testing.assert_array_equal(custom.hypervolumes, volumes[:3])
+        weighted = make_box_trials(block, 5, ntrial=3, rng=np.random.default_rng(138),
+                                   weight_function=lambda x: x[:, 0]**2)
+        midpoint = custom.boxes.lower+(custom.boxes.upper-custom.boxes.lower)/2
+        np.testing.assert_array_equal(weighted.boxes.weight, midpoint[:, 0]**2)
+    event = make_event_boxes(samples, rng=np.random.default_rng(138), ntrial=(2, 3))
+    rng = np.random.default_rng(138)
+    for block, dimensions, ncenters, trials in zip(event, (slice(0, 3), slice(3, 5)),
+                                                 (4, 8), (2, 3)):
+        expected = make_box_trials(samples[:, dimensions], ncenters, trials, rng)
+        np.testing.assert_array_equal(block.rows(), expected.boxes.rows())
+
+
+def test_degenerate_volume_is_visible():
+    """Do not silently fix a retained box with zero width in one coordinate."""
+    samples = np.array([[0., 0.], [0., 1.]])
+    with np.errstate(divide='ignore', invalid='ignore'):
+        boxes = make_boxes(samples, samples[:1])
+        assert boxes.n_boxes == 1
+        assert np.isinf(boxes.density[0])
+        assert np.isnan(boxes.retained_probability)
+
+
 if __name__ == "__main__":
+    test_degenerate_volume_is_visible()
+    test_trial_selection()
     test_known_grid()
     test_against_explicit_full_grid()
     test_singleton_discard()

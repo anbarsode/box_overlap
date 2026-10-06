@@ -4,7 +4,7 @@ import sys
 import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from bo import (BoxSet, EventBoxes, build_index, find_1vN, find_NvN,
-                make_event_boxes, overlap_NvN_pairs, prepare_events, find_NvN_batches)
+                make_event_boxes, overlap_NvN_pairs, prepare_events, find_NvN_batches, partition_bounds, find_candidate_1vN)
 
 
 def intersects(a, b):
@@ -72,7 +72,73 @@ def test_detection_subset_and_arak():
           f'{len(subset_pairs)} with selected detection boxes')
 
 
+
+def reference_partitions(boxes, levels):
+    """Independent exhaustive cut costs, without prefix/suffix bound caching."""
+    groups = [np.arange(boxes.n_boxes)] if boxes.n_boxes else []
+    for _ in range(levels):
+        next_groups = []
+        for group in groups:
+            if len(group) < 2:
+                next_groups.append(group)
+                continue
+            best, split = np.inf, None
+            for axis in range(boxes.dimension):
+                center = boxes.lower[group, axis]+boxes.upper[group, axis]
+                order = group[np.argsort(center, kind='stable')]
+                for cut in range(1, len(order)):
+                    parts = (order[:cut], order[cut:])
+                    cost = sum(np.prod(boxes.upper[g].max(0)-boxes.lower[g].min(0))
+                               for g in parts)
+                    if cost < best:
+                        best, split = cost, parts
+            next_groups.extend(split)
+        groups = next_groups
+    return np.array([np.r_[boxes.lower[g].min(0), boxes.upper[g].max(0)]
+                     for g in groups]).reshape(-1, 2*boxes.dimension)
+
+
+def test_partition_bounds_and_consolidation():
+    rng = np.random.default_rng(812)
+    events = [make_event_boxes(rng.normal(size=(600, 5))+rng.uniform(-5, 5, 5),
+                               n_centers=(3, 4), rng=rng) for _ in range(35)]
+    expected = find_NvN(build_index(events, subdivisions=(0, 0)))
+    for levels in ((0, 1), (0, 2), (0, 3), (1, 2), (2, 0), (0, 8)):
+        index = build_index(events, subdivisions=levels)
+        np.testing.assert_array_equal(find_NvN(index), expected)
+        assert index.last_candidate_count >= len(expected)
+        candidate_count = index.last_candidate_count
+        reversed_index = build_index(events, subdivisions=levels, block_order=(1, 0))
+        np.testing.assert_array_equal(find_NvN(reversed_index), expected)
+        assert reversed_index.last_candidate_count == candidate_count
+        for query in events[:3]:
+            candidates = find_candidate_1vN(query, index)
+            hits = find_1vN(query, index)
+            np.testing.assert_array_equal(find_1vN(query, reversed_index), hits)
+            np.testing.assert_array_equal(find_candidate_1vN(query, reversed_index), candidates)
+            assert set(hits).issubset(set(candidates))
+            assert len(candidates) == len(set(candidates))
+            for block in (0, 1):
+                actual = partition_bounds(query, block, levels[block])
+                reference = reference_partitions(query.blocks[block], levels[block])
+                np.testing.assert_array_equal(actual, reference)
+    # Four separated modes: a query in the central gap passes an overall bound
+    # but is rejected by partition bounds. Overlapping partitions still produce
+    # only one hit per event; the exact finder agrees for both indexes.
+    lo = np.array([[-5., -5.], [-5., 4.], [4., -5.], [4., 4.]])
+    modes = BoxSet(lo, lo+1, np.ones(4), np.ones(4))
+    common = BoxSet(np.zeros((1, 3)), np.ones((1, 3)), np.ones(1), np.ones(1))
+    gap = BoxSet(np.zeros((1, 2)), np.ones((1, 2)), np.ones(1), np.ones(1))
+    target, query = EventBoxes((common, modes), 1.), EventBoxes((common, gap), 1.)
+    np.testing.assert_array_equal(find_candidate_1vN(query, build_index([target], (0, 0))), [0])
+    assert len(find_candidate_1vN(query, build_index([target], (0, 2)))) == 0
+    np.testing.assert_array_equal(find_1vN(target, build_index([target], (0, 2))), [0])
+    empty = BoxSet(np.empty((0, 2)), np.empty((0, 2)), np.empty(0), np.empty(0))
+    assert partition_bounds(EventBoxes((common, empty), 0.)).shape == (0, 4)
+
+
 if __name__ == '__main__':
+    test_partition_bounds_and_consolidation()
     test_exhaustive()
     test_geometry_not_weight()
     test_detection_subset_and_arak()

@@ -1,33 +1,51 @@
-"""Fast box approximations and overlap calculations for sampled event densities."""
+"""Disjoint probability boxes, indexed pair finding, and weighted C++ overlaps."""
 
 from .event_boxes import (
     BoxSet,
+    BoxTrials,
     EventBoxes,
     load_event_boxes,
+    make_box_trials,
     make_boxes,
     make_event_boxes,
     pick_centers,
     save_event_boxes,
 )
+from .overlap import (
+    build_index,
+    find_1vN,
+    find_NvN,
+    find_NvN_batches,
+    find_candidate_1vN,
+    overlap_1v1,
+    overlap_1vN,
+    overlap_NvN,
+    overlap_NvN_pairs,
+    partition_bounds,
+    prepare_event,
+    prepare_events,
+)
 
 __all__ = [
     "BoxSet",
+    "BoxTrials",
     "EventBoxes",
     "load_event_boxes",
+    "make_box_trials",
     "make_boxes",
     "make_event_boxes",
     "pick_centers",
     "save_event_boxes",
+    "build_index",
+    "find_1vN",
+    "find_NvN",
+    "find_NvN_batches",
+    "find_candidate_1vN",
+    "overlap_1v1",
+    "overlap_1vN",
+    "overlap_NvN",
+    "overlap_NvN_pairs",
+    "partition_bounds",
+    "prepare_event",
+    "prepare_events",
 ]
-
-from .overlap import (overlap_1v1, overlap_1vN, overlap_NvN, overlap_NvN_pairs,
-                      prepare_event, prepare_events)
-
-__all__ += ["overlap_1v1", "overlap_1vN", "overlap_NvN", "overlap_NvN_pairs",
-            "prepare_event", "prepare_events"]
-
-from .overlap import build_index, find_1vN, find_NvN
-__all__ += ["build_index", "find_1vN", "find_NvN"]
-
-from .overlap import find_NvN_batches
-__all__ += ["find_NvN_batches"]

@@ -65,7 +65,7 @@ def make_event(n_samples: int, rng: np.random.Generator) -> np.ndarray:
         bounds=[[0., 3.], [-2., 0.], [-1., 1.]],
         dimension=3,
         reference_center=[rng.uniform(0, 3), 2 * rng.uniform()**0.5 - 2, rng.uniform(-1, 1)],
-        mode_scale=[0.3, 1.5, 3.],
+        mode_scale=[0.2, 1, 2.],
         alignment=rng.uniform(),
         K=2,
         epsilon=1.,
@@ -81,7 +81,7 @@ def make_event(n_samples: int, rng: np.random.Generator) -> np.ndarray:
         bounds=[[0., 2 * np.pi], [-1., 1.]],
         dimension=2,
         reference_center=[rng.uniform(0, 2 * np.pi), rng.uniform(-1, 1)],
-        mode_scale=[5, 1],
+        mode_scale=[2, 0.5],
         center_scale=[2, 1],
         weight_decay=1.,
         scale_decay=1.,
@@ -110,7 +110,7 @@ def save_corner_plot(samples: np.ndarray, path: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--n-events", type=int, default=100000)
+    parser.add_argument("--n-events", type=int, default=10000)
     parser.add_argument("--n-samples", type=int, default=10000)
     parser.add_argument("--seed", type=int)
     parser.add_argument("--output", type=Path,

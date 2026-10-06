@@ -56,7 +56,10 @@ class BoxSet:
 
     All arrays use ``float64``. ``lower`` and ``upper`` have shape
     ``(n_boxes, dimension)``; ``density`` and ``weight`` have shape
-    ``(n_boxes,)``.
+    ``(n_boxes,)``. ``sort_dimension`` is a zero-based coordinate local to this
+    block, not the full sample array. All compared blocks must use the same order.
+    Weights are evaluated at final box centers; densities are not renormalized.
+    Zero-volume boxes intentionally expose invalid data through inf/NaN.
     """
 
     lower: np.ndarray
@@ -111,7 +114,12 @@ def pick_centers(
     n_centers: int,
     rng: np.random.Generator,
 ) -> np.ndarray:
-    """Choose sample positions without replacement to set the grid separators."""
+    """Choose ``n_centers`` rows without replacement from ``samples``.
+
+    ``samples`` has shape (N,d); 1 <= n_centers <= N. ``rng`` controls reproducibility.
+    Selected coordinates set midpoint separators; they are not generally the
+    geometric centers of the final, shrunken boxes.
+    """
     samples = np.asarray(samples)
     return samples[rng.choice(len(samples), size=n_centers, replace=False)]
 
@@ -128,8 +136,6 @@ def _make_grid_edges(samples: np.ndarray, centers: np.ndarray) -> tuple[np.ndarr
         midpoints = selected[:-1] + (selected[1:] - selected[:-1]) / 2
         lower = samples[:, coordinate].min()
         upper = samples[:, coordinate].max()
-        if upper <= lower:
-            raise ValueError(f"Coordinate {coordinate} has zero sample range")
         edges.append(np.concatenate(([lower], midpoints, [upper])))
     return tuple(edges)
 
@@ -205,18 +211,94 @@ def make_boxes(
     return BoxSet(lower, upper, density, weight, sort_dimension)
 
 
+@dataclass(slots=True)
+class BoxTrials:
+    """Winning realisation and the information needed to inspect trial selection.
+
+    ``boxes`` contains the winning density boxes; ``centers`` contains the
+    selected sample rows that defined its grid. ``hypervolumes[t]`` is the sum
+    of retained box volumes in trial t. ``selected_trial`` is a zero-based index.
+    """
+
+    boxes: BoxSet
+    centers: np.ndarray
+    hypervolumes: np.ndarray
+    selected_trial: int
+
+
+def make_box_trials(
+    samples: npt.ArrayLike,
+    n_centers: int,
+    ntrial: int | None = None,
+    rng: np.random.Generator | None = None,
+    sort_dimension: int = 0,
+    weight_function: WeightFunction | None = None,
+) -> BoxTrials:
+    """Keep the random grid with the smallest sum of retained box hypervolumes.
+
+    The objective is H = sum_B prod_k(upper_Bk - lower_Bk), evaluated after
+    singleton removal and shrinking. Defaults are five trials in 3D, ten in
+    2D, and one in other dimensions. Ties keep the earliest trial. Trials use
+    fresh center samples from the supplied generator. Only the best boxes and
+    centers are kept, plus one scalar per trial; raw samples are never copied
+    across events. Weights are evaluated only on the winning boxes.
+
+    This objective measures geometric support, not retained probability. A
+    smaller-volume trial may discard more singleton mass; the event-level
+    retained-probability warning still applies to the winning realisation.
+    """
+    samples = np.asarray(samples)
+    ntrial = {3: 5, 2: 10}.get(samples.shape[1], 1) if ntrial is None else ntrial
+    if ntrial < 1:
+        raise ValueError("ntrial must be positive")
+    rng = np.random.default_rng() if rng is None else rng
+    volumes = np.empty(ntrial)
+    best = None
+    for trial in range(ntrial):
+        centers = pick_centers(samples, n_centers, rng)
+        boxes = make_boxes(samples, centers, sort_dimension=sort_dimension)
+        volumes[trial] = np.prod(boxes.upper - boxes.lower, axis=1).sum()
+        if best is None or volumes[trial] < volumes[selected]:
+            best, best_centers, selected = boxes, centers, trial
+    if weight_function is not None:
+        centers = best.lower + (best.upper - best.lower) / 2
+        best.weight = np.ascontiguousarray(weight_function(centers), dtype=np.float64)
+    return BoxTrials(best, best_centers, volumes, selected)
+
+
 def make_event_boxes(
     samples: npt.ArrayLike,
     n_centers: tuple[int, int] = (4, 8),
     rng: np.random.Generator | None = None,
     sort_dimensions: tuple[int, int] = (0, 0),
     block_dimensions: tuple[int, int] = (3, 2),
+    ntrial: tuple[int, int] | None = None,
 ) -> EventBoxes:
     """Split two blocks from joint samples into independent box densities.
+
+    Parameters
+    ----------
+    samples:
+        Joint sample array (N, d0+d1); only this event's samples are needed.
+    n_centers:
+        Selected sample counts per block, default (4,8), each at most N. These
+        control grid complexity, not the final occupied box count.
+    rng:
+        NumPy generator; None uses fresh randomness. A shared generator is
+        advanced through first-block trials and then second-block trials.
+    sort_dimensions:
+        Zero-based ordering coordinates local to each block, default (0,0).
+    block_dimensions:
+        Dimensions (d0,d1), default (3,2); positive and sum to the column count.
+    ntrial:
+        Positive trial counts per block, or None for dimension-dependent defaults.
 
     ``sort_dimensions`` chooses the local ordering coordinate in each block.
     ``block_dimensions`` controls the split, defaulting to the first three and
     last two columns. Separate random choices and separators are used per block.
+    ``ntrial`` sets the number of random realisations per block. When omitted,
+    each 3D block uses five trials and each 2D block ten; other dimensions use one.
+    The realisation with the smallest total retained box hypervolume is kept.
     The product of the two retained box densities is the
     approximate joint event density; omitted singleton mass is
     not renormalized. A warning is raised when the discarded event probability
@@ -229,10 +311,10 @@ def make_event_boxes(
         raise ValueError("Two positive block dimensions must sum to the sample column count")
     first = samples[:, :d0]
     second = samples[:, d0:]
-    blocks = (make_boxes(first, pick_centers(first, n_centers[0], rng),
-                         sort_dimension=sort_dimensions[0]),
-              make_boxes(second, pick_centers(second, n_centers[1], rng),
-                         sort_dimension=sort_dimensions[1]))
+    trials = (None, None) if ntrial is None else ntrial
+    blocks = tuple(make_box_trials(block, count, trial, rng, axis).boxes
+                   for block, count, trial, axis in
+                   zip((first, second), n_centers, trials, sort_dimensions))
     retained_probability = blocks[0].retained_probability * blocks[1].retained_probability
     discarded_probability = 1 - retained_probability
     if discarded_probability > 0.001 + 1e-12:
@@ -288,7 +370,7 @@ def load_event_boxes(
         start = 0
         for block_index, (dimension, n_boxes) in enumerate(layout):
             n_values = n_boxes * (2 * dimension + 2)
-            rows = values[start:start + n_values].reshape(n_boxes, 2 * dimension + 2).copy()
+            rows = values[start:start + n_values].reshape(n_boxes, 2 * dimension + 2)
             blocks.append(BoxSet(rows[:, :dimension], rows[:, dimension:2*dimension],
                                  rows[:, -2], rows[:, -1], sort_dimensions[block_index]))
             start += n_values

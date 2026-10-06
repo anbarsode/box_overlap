@@ -11,6 +11,7 @@ pairwise histogram comparisons. Only compact boxes are retained across events.
 from pathlib import Path
 import argparse
 import csv
+import json
 import os
 import sys
 import time
@@ -24,36 +25,14 @@ from bo import (make_event_boxes, prepare_event, prepare_events, build_index,
                 find_1vN, find_NvN_batches, overlap_1vN, overlap_NvN_pairs)
 
 
-def plot_style():
-    import shutil
-    import matplotlib.pyplot as plt
-    from matplotlib import rcParams, font_manager
-    from cycler import cycler
-    colors = ['navy', 'coral', 'c', 'crimson', 'springgreen', 'gold',
-              'dodgerblue', 'hotpink', 'forestgreen', 'moccasin', 'darkred', 'teal']
-    rcParams.update({'axes.labelsize': 14, 'axes.titlesize': 14, 'legend.fontsize': 14,
-        'xtick.labelsize': 12, 'ytick.labelsize': 12, 'text.usetex': True,
-        'text.latex.preamble': r'\usepackage{txfonts}', 'font.size': 14,
-        'font.family': 'serif', 'font.serif': 'times', 'mathtext.default': 'sf',
-        'lines.markeredgewidth': 1, 'lines.linewidth': 2,
-        'axes.prop_cycle': cycler(color=colors)})
-    missing = [name for name in ('latex', 'dvipng') if shutil.which(name) is None]
-    if missing:
-        print(f"Install {', '.join(missing)} separately for LaTeX plot text.", flush=True)
-        rcParams['text.usetex'] = False
-    try:
-        font_manager.findfont('Times', fallback_to_default=False)
-    except ValueError:
-        print('Install a Times font separately for the requested plot font.', flush=True)
-        rcParams['font.serif'] = ['DejaVu Serif']
-    return plt
+from validation.plot_style import plot_style
 
 
-def intersection_plot(events, queries, ids, output, plt):
+def intersection_plot(events, queries, ids, output, plt, subdivisions=(0, 3)):
     """Show second-block boxes; colors encode intersection in BOTH full blocks."""
     from matplotlib.collections import PatchCollection
     from matplotlib.patches import Rectangle, Patch
-    index = build_index(events)
+    index = build_index(events, subdivisions=subdivisions)
     count = len(queries)
     rows, columns = (1, 1) if count == 1 else (2, 3)
     fig, axes = plt.subplots(rows, columns, figsize=(8, 7) if count == 1 else (18, 11),
@@ -128,6 +107,10 @@ def main():
     parser.add_argument('--timings-only', action='store_true',
                         help='Keep existing figures and histogram comparison; rerun timings')
     parser.add_argument('--batch-events', type=int, default=64)
+    parser.add_argument('--ntrial', type=int, nargs=2, default=(5, 10),
+                        help='Random box trials for the first and second blocks')
+    parser.add_argument('--subdivisions', type=int, nargs=2, default=(0, 3),
+                        help='Subdivision levels for the first and second blocks')
     args = parser.parse_args()
     folder = Path(__file__).parent
     out = folder/'pair_finder_results'; out.mkdir(exist_ok=True)
@@ -137,26 +120,36 @@ def main():
         total = min(args.max_events, total)
     if total < 105:
         raise ValueError('At least 105 events are needed for the fixed examples')
-    events, prepared, generation, preparation = [], [], [], []
+    events, prepared, generation, preparation, probabilities = [], [], [], [], []
+    settings = {'ntrial': list(args.ntrial), 'subdivisions': list(args.subdivisions),
+                'dataset_events': total, 'batch_events': args.batch_events,
+                'histogram_bins': args.histogram_bins, 'seed': '91 + event index',
+                'status': 'running', 'block_order': [0, 1]}
+    (out/'settings.json').write_text(json.dumps(settings, indent=2)+'\n')
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', RuntimeWarning)
         for i in range(total):
             samples = np.load(folder/'ARAK_samples'/f'event_{i}.npy', mmap_mode='r')
             start = time.perf_counter()
-            event = make_event_boxes(samples, rng=np.random.default_rng(91+i))
+            event = make_event_boxes(samples, rng=np.random.default_rng(91+i), ntrial=args.ntrial)
             generation.append(time.perf_counter()-start)
             start = time.perf_counter(); snapshot = prepare_event(event)
             preparation.append(time.perf_counter()-start)
-            events.append(event); prepared.append(snapshot)
+            # Only the first 105 Python events are needed for the example plots.
+            # Prepared C++ boxes already own the full integration collection.
+            if not args.timings_only and i < 105:
+                events.append(event)
+            prepared.append(snapshot)
+            probabilities.append(event.retained_probability)
             del samples  # Retain boxes, never raw samples from earlier events.
             if (i+1) % 1000 == 0:
                 print(f'Built {i+1} / {total} events', flush=True)
     if not args.timings_only:
-        intersection_plot(events[:100], events[100:101], [100], out/'100v1.jpg', plt)
+        intersection_plot(events[:100], events[100:101], [100], out/'100v1.jpg', plt, args.subdivisions)
         intersection_plot(events[:100], events[100:105], list(range(100,105)),
-                          out/'100v5.jpg', plt)
+                          out/'100v5.jpg', plt, args.subdivisions)
         # Cross-set calculation uses many prefiltered 1vN calls, as prescribed.
-        index100 = build_index(prepared[:100])
+        index100 = build_index(prepared[:100], subdivisions=args.subdivisions)
         cross = []
         for q in range(100,105):
             hits = find_1vN(prepared[q], index100)
@@ -198,18 +191,19 @@ def main():
     sizes=np.unique(np.geomspace(2,total,20).astype(int))
     generation=np.cumsum(generation); preparation=np.cumsum(preparation)
     headers=['N','box_generation_s','preparation_s','index_build_s','find_NvN_s',
-             'overlap_NvN_s','find_1vN_s','overlap_1vN_s','NvN_pairs','1vN_hits']
+             'overlap_NvN_s','find_1vN_s','overlap_1vN_s','NvN_pairs','1vN_hits','NvN_candidates','candidate_rejection','pair_rejection','index_entries']
     measurements=[]
     for n in sizes:
         start=time.perf_counter(); collection=prepare_events(prepared[:n])
-        index=build_index(collection); index_time=time.perf_counter()-start
-        find_all, overlap_all, pair_count = 0., 0., 0
+        index=build_index(collection, subdivisions=args.subdivisions); index_time=time.perf_counter()-start
+        find_all, overlap_all, pair_count, candidates = 0., 0., 0, 0
         batches = iter(find_NvN_batches(index, args.batch_events))
         progress = time.perf_counter()
         for batch in range((n+args.batch_events-1)//args.batch_events):
             start=time.perf_counter(); hits=next(batches)
             find_all += time.perf_counter()-start
             pair_count += len(hits)
+            candidates += index.last_candidate_count
             start=time.perf_counter(); values=overlap_NvN_pairs(collection,hits)
             overlap_all += time.perf_counter()-start
             del hits, values  # Never retain all matching pairs or integrals.
@@ -224,11 +218,14 @@ def main():
         start=time.perf_counter(); overlap_1vN(prepared[-1],[prepared[j] for j in one_hits])
         overlap_one=time.perf_counter()-start
         measurements.append([n,generation[n-1],preparation[n-1],index_time,
-                             find_all,overlap_all,find_one,overlap_one,pair_count,len(one_hits)])
+                             find_all,overlap_all,find_one,overlap_one,pair_count,len(one_hits),
+                             candidates,1-candidates/(n*(n-1)/2),1-pair_count/(n*(n-1)/2),
+                             index.entry_count])
         with open(out/'timings.csv','w',newline='') as f:
             writer=csv.writer(f); writer.writerow(headers); writer.writerows(measurements)
         print(f'N={n}: {pair_count} pairs, finding {find_all:.3f}s, '
-              f'overlap {overlap_all:.3f}s',flush=True)
+              f'overlap {overlap_all:.3f}s, rejection {100*(1-pair_count/(n*(n-1)/2)):.2f}%, '
+              f'bounds rejection {100*(1-candidates/(n*(n-1)/2)):.2f}%',flush=True)
     with open(out/'timings.csv','w',newline='') as f:
         writer=csv.writer(f); writer.writerow(headers); writer.writerows(measurements)
     data=np.asarray(measurements)
@@ -241,6 +238,10 @@ def main():
         ax.set_xlabel('Number of events'); ax.set_ylabel('Wall time (s)'); ax.set_title(title)
         ax.legend(fontsize=11); ax.grid(alpha=.2)
     fig.tight_layout(); fig.savefig(out/'scaling.jpg',dpi=200); plt.close(fig)
+    settings.update(status='complete', retained_probability_min=float(min(probabilities)),
+                    retained_probability_mean=float(np.mean(probabilities)),
+                    events_losing_over_point_one_percent=sum(p < .999-1e-12 for p in probabilities))
+    (out/'settings.json').write_text(json.dumps(settings, indent=2)+'\n')
     print(f'Saved validation results to {out}',flush=True)
 
 

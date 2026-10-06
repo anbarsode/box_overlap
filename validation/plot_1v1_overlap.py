@@ -14,7 +14,7 @@ import sys
 import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from bo import make_event_boxes, overlap_1v1
-from validate_pair_finder import plot_style
+from validation.plot_style import plot_style
 
 
 def block_maps(samples_a, samples_b, boxes_a, boxes_b, bins=96):
@@ -144,7 +144,7 @@ def plot_intersection(samples_a, samples_b, event_a, event_b, idx1, idx2, bins=9
 if __name__=='__main__':
     import argparse
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--idx1',type=int,default=66)
+    parser.add_argument('--idx1',type=int,default=19)
     parser.add_argument('--idx2',type=int,default=71)
     parser.add_argument('--bins',type=int,default=96)
     args=parser.parse_args()
