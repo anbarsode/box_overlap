@@ -102,7 +102,9 @@ def test_against_explicit_full_grid():
         weight_function = lambda x: np.sum(x**2, axis=1)
         actual = make_boxes(samples, centers, weight_function)
         expected = reference_boxes(samples, centers, weight_function)
-        np.testing.assert_allclose(actual.rows(), np.column_stack(expected))
+        expected_rows = np.column_stack(expected)
+        expected_rows = expected_rows[np.argsort(expected_rows[:, 0], kind="stable")]
+        np.testing.assert_allclose(actual.rows(), expected_rows)
 
 
 def test_singleton_discard():
@@ -147,11 +149,36 @@ def test_arak_event():
         for old, new in zip((first, second), restored):
             np.testing.assert_array_equal(old.rows(), new.rows())
         np.testing.assert_array_equal(restored.retained_probability, event.retained_probability)
+        reordered = load_event_boxes(path, sort_dimensions=(2, 1))
+        for original, new in zip(event, reordered):
+            assert np.all(np.diff(new.lower[:, new.sort_dimension]) >= 0)
+            # Undo the row ordering to compare the saved geometry and scalars.
+            original_rows = original.rows()
+            new_rows = new.rows()
+            np.testing.assert_array_equal(
+                original_rows[np.lexsort(original_rows[:, :original.dimension].T)],
+                new_rows[np.lexsort(new_rows[:, :new.dimension].T)])
         assert path.stat().st_size == 32 + 8 * (first.n_boxes * 8 + second.n_boxes * 6)
 
     # The lower-level functions expose the chosen sample points for plots.
     selected = pick_centers(samples[:, :3], 5, np.random.default_rng(138))
     np.testing.assert_array_equal(first.rows(), make_boxes(samples[:, :3], selected).rows())
+
+
+def test_configurable_block_dimensions():
+    rng = np.random.default_rng(514)
+    for dimensions in ((2, 3), (1, 3), (2, 4)):
+        samples = rng.normal(size=(2000, sum(dimensions)))
+        event = make_event_boxes(samples, n_centers=(3, 3),
+                                 rng=np.random.default_rng(18), block_dimensions=dimensions)
+        assert tuple(b.dimension for b in event.blocks) == dimensions
+        choices = np.random.default_rng(18)
+        d0 = dimensions[0]
+        for columns, actual in zip((samples[:, :d0], samples[:, d0:]), event.blocks):
+            expected = make_boxes(columns, pick_centers(columns, 3, choices))
+            np.testing.assert_array_equal(actual.rows(), expected.rows())
+        np.testing.assert_allclose(event.retained_probability,
+            np.prod([b.retained_probability for b in event.blocks]))
 
 
 def test_retained_probability_warning():
@@ -172,4 +199,5 @@ if __name__ == "__main__":
     test_singleton_discard()
     test_arak_event()
     test_retained_probability_warning()
+    test_configurable_block_dimensions()
     print("Probability box checks passed")

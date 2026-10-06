@@ -1,4 +1,8 @@
 validation/ARAK_samples
+validation/pair_finder_results
 __pycache__
 .ipynb_checkpoints
 .serena/
+
+# Locally compiled Python extensions
+*.so

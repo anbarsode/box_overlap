@@ -63,6 +63,13 @@ class BoxSet:
     upper: np.ndarray
     density: np.ndarray
     weight: np.ndarray
+    sort_dimension: int = 0
+
+    def __post_init__(self):
+        """Keep all box arrays in lower-bound order for the overlap sweep."""
+        order = np.argsort(self.lower[:, self.sort_dimension], kind="stable")
+        for name in ("lower", "upper", "density", "weight"):
+            setattr(self, name, np.ascontiguousarray(getattr(self, name)[order]))
 
     @property
     def dimension(self) -> int:
@@ -87,7 +94,7 @@ class BoxSet:
 class EventBoxes:
     """The two block densities and their total retained probability mass.
 
-    Since the block densities are independent, the integrated five-dimensional
+    Since the block densities are independent, the integrated joint
     density is the product of their two integrals.
     """
 
@@ -159,6 +166,7 @@ def make_boxes(
     samples: npt.ArrayLike,
     centers: npt.ArrayLike,
     weight_function: WeightFunction | None = None,
+    sort_dimension: int = 0,
 ) -> BoxSet:
     """Build occupied boxes for one probability block.
 
@@ -172,6 +180,9 @@ def make_boxes(
     weight_function:
         Optional function accepting box centers of shape ``(n_boxes, dimension)``
         and returning one weight per box. The current default is one everywhere.
+
+    sort_dimension:
+        Coordinate whose lower bounds order the final boxes; defaults to zero.
 
     Only occupied cells are constructed. Single-sample cells are discarded;
     the other boxes are shrunk to the minimum and maximum coordinates of their
@@ -191,28 +202,37 @@ def make_boxes(
     box_centers = lower + (upper - lower) / 2
     weight = (np.ones(len(lower), dtype=np.float64) if weight_function is None else
               np.asarray(weight_function(box_centers), dtype=np.float64))
-    return BoxSet(lower, upper, density, weight)
+    return BoxSet(lower, upper, density, weight, sort_dimension)
 
 
 def make_event_boxes(
     samples: npt.ArrayLike,
     n_centers: tuple[int, int] = (4, 8),
     rng: np.random.Generator | None = None,
+    sort_dimensions: tuple[int, int] = (0, 0),
+    block_dimensions: tuple[int, int] = (3, 2),
 ) -> EventBoxes:
-    """Split five joint coordinates into independent 3D and 2D box densities.
+    """Split two blocks from joint samples into independent box densities.
 
-    Separate random choices and separators are used for the first three and
-    last two columns. The product of the two retained box densities is the
-    approximate five-dimensional event density; omitted singleton mass is
+    ``sort_dimensions`` chooses the local ordering coordinate in each block.
+    ``block_dimensions`` controls the split, defaulting to the first three and
+    last two columns. Separate random choices and separators are used per block.
+    The product of the two retained box densities is the
+    approximate joint event density; omitted singleton mass is
     not renormalized. A warning is raised when the discarded event probability
     exceeds 0.1%.
     """
     samples = np.asarray(samples)
     rng = np.random.default_rng() if rng is None else rng
-    first = samples[:, :3]
-    second = samples[:, 3:]
-    blocks = (make_boxes(first, pick_centers(first, n_centers[0], rng)),
-              make_boxes(second, pick_centers(second, n_centers[1], rng)))
+    d0, d1 = block_dimensions
+    if d0 <= 0 or d1 <= 0 or d0+d1 != samples.shape[1]:
+        raise ValueError("Two positive block dimensions must sum to the sample column count")
+    first = samples[:, :d0]
+    second = samples[:, d0:]
+    blocks = (make_boxes(first, pick_centers(first, n_centers[0], rng),
+                         sort_dimension=sort_dimensions[0]),
+              make_boxes(second, pick_centers(second, n_centers[1], rng),
+                         sort_dimension=sort_dimensions[1]))
     retained_probability = blocks[0].retained_probability * blocks[1].retained_probability
     discarded_probability = 1 - retained_probability
     if discarded_probability > 0.001 + 1e-12:
@@ -241,8 +261,15 @@ def save_event_boxes(path: str | Path, event: EventBoxes) -> None:
         output.write(second.rows().astype("<f8", copy=False).tobytes())
 
 
-def load_event_boxes(path: str | Path) -> EventBoxes:
-    """Read the binary format written by :func:`save_event_boxes`."""
+def load_event_boxes(
+    path: str | Path,
+    sort_dimensions: tuple[int, int] = (0, 0),
+) -> EventBoxes:
+    """Read saved boxes and order each block along its supplied local coordinate.
+
+    Ordering metadata is not stored in the binary format; the caller supplies
+    ``sort_dimensions`` when an order other than the first coordinate is needed.
+    """
     with open(path, "rb") as source:
         header = source.read(_HEADER.size)
         if len(header) != _HEADER.size:
@@ -259,10 +286,10 @@ def load_event_boxes(path: str | Path) -> EventBoxes:
 
         blocks = []
         start = 0
-        for dimension, n_boxes in layout:
+        for block_index, (dimension, n_boxes) in enumerate(layout):
             n_values = n_boxes * (2 * dimension + 2)
             rows = values[start:start + n_values].reshape(n_boxes, 2 * dimension + 2).copy()
             blocks.append(BoxSet(rows[:, :dimension], rows[:, dimension:2*dimension],
-                                 rows[:, -2], rows[:, -1]))
+                                 rows[:, -2], rows[:, -1], sort_dimensions[block_index]))
             start += n_values
     return EventBoxes((blocks[0], blocks[1]), retained_probability)
