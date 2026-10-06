@@ -1,3 +1,4 @@
 validation/ARAK_samples
 __pycache__
 .ipynb_checkpoints
+.serena/
