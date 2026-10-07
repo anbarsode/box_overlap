@@ -290,9 +290,9 @@ The serial helper is compiled with the installed pybind11/C++17 tools and checke
 against NumPy, including samples on/next to edges and shared coarse bins.
 
 Fits use pairs positive in both estimates, with histogram integral x and box
-integral y. `np.polyfit(log10(x), log10(y), degree)` uses degrees 1 and 2;
+integral y. `np.polyfit(log10(x), log10(y), degree)` uses degree 1;
 zero estimates remain visible in the plot but are excluded from logarithms.
-The degree-1 fit is a power law, while degree 2 adds log-space curvature.
+Separate linear power laws describe the ARAK and CAMP points.
 Coefficients and residuals are saved in `histogram_comparison_fits.json`.
 
 `summarize_cost.py` redraws the saved cost measurements and fits each of the five
@@ -312,3 +312,60 @@ and PO2.0 pair calculations on pairs **surviving box overlap**. The measured
 surviving count is `NvN_pairs`; extrapolation holds the largest
 measured dataset's rejection fraction fixed. Comparison assumptions and values
 are saved under `comparison` in the NvN panel of `cost_extrapolation.json`.
+
+## CAMP: connected pairs
+
+CAMP draws two anchors from a shared reference product PDF, then independently
+creates two final product PDFs around those anchors, using the same 3D/2D block
+settings as ARAK. Connected PDFs can still have zero intersections in their
+finite-sample histogram or shrunken box approximations.
+
+From the project root, using the `gw` environment:
+
+```bash
+python -m bo.build_overlap
+python validation/create_CAMP_samples.py \
+    --n-pairs 1000 --n-samples 10000 --n-plots 100 --seed 20261007 \
+    --output validation/CAMP_samples
+python validation/test_paired.py
+python validation/camp_comparison.py \
+    --pairs 1000 --bins 24 \
+    --samples validation/CAMP_samples --output validation/CAMP_results
+python validation/update_results.py
+```
+
+Generation writes `event_{i}_0.npy` and `event_{i}_1.npy`, with i=0,...,999.
+`event_{i}.jpg` overlays both members for the first `--n-plots` pairs; ranges
+are shared and colors identify the members. Each file contains an `(10000,5)`
+array by default. A failed stochastic construction retries that pair.
+Generation holds just two raw arrays at a time. `--n-plots 0` skips plotting.
+
+The comparison also reads only one pair at a time. It builds boxes using the
+usual `(4,8)` centers, `(5,10)` trials, ordering axes `(0,0)`, blocks `(3,2)`,
+and box seed `91+2*i+member`. Compact boxes are saved in `CAMP_results/boxes`.
+No all-event BVH or all-possible-pairs calculation is needed. Results go to
+`CAMP_results/histogram_comparison.csv` and `comparison.json`.
+
+The shared ARAK/CAMP scatterplot remains
+`pair_finder_results/histogram_comparison.jpg`. It shows separate degree-1
+power laws fitted to positive histogram and box integrals, together with the
+equality line. Zeros are shown but excluded from logarithmic fits. Both datasets
+use 24 histogram bins per axis; use the same `--bins` in each comparison.
+The quadratic scatter fit is removed. Computational-cost fits remain unchanged.
+
+For saved boxes, use the matching-pair APIs directly:
+
+```python
+from bo import load_event_boxes, find_paired, overlap_paired
+from pathlib import Path
+folder = Path('validation/CAMP_results/boxes')
+events1 = [load_event_boxes(folder/f'event_{i}_0.boxes') for i in range(1000)]
+events2 = [load_event_boxes(folder/f'event_{i}_1.boxes') for i in range(1000)]
+mask = find_paired(events1, events2)  # same exact geometry as indexed finding
+values = overlap_paired(events1, events2)  # values[i] compares matching members
+```
+
+Use smaller batches of saved boxes if desired. Supplying selected detection
+boxes to `find_paired` does not change which full boxes should be supplied to
+`overlap_paired`. General weights coupling the two blocks retain the limitations
+explained in `bo/README.md`.

@@ -12,6 +12,8 @@ from .event_boxes import (
     save_event_boxes,
 )
 from .overlap import (
+    find_paired,
+    overlap_paired,
     build_index,
     find_1vN,
     find_NvN,
@@ -36,6 +38,8 @@ __all__ = [
     "make_event_boxes",
     "pick_centers",
     "save_event_boxes",
+    "find_paired",
+    "overlap_paired",
     "build_index",
     "find_1vN",
     "find_NvN",

@@ -140,3 +140,31 @@ It is followed by `n0` rows of `2*d0+2` float64 values and `n1` rows of `2*d1+2`
 values. Rows contain lower coordinates, upper coordinates, density, weight, in that
 order. Total size is `32 + 8*(n0*(2*d0+2)+n1*(2*d1+2))` bytes. C++ readers must
 interpret the byte layout rather than assuming a native padded struct.
+
+## Connected or otherwise known matching pairs
+
+`find_paired(events1, events2)` returns a Boolean array: element i checks only
+`events1[i]` against `events2[i]`. `overlap_paired(events1, events2)` returns the
+corresponding weighted integral array, including zero values. Both sets must
+have equal lengths. Lists of `EventBoxes` or reusable `PreparedEvents` work.
+These methods perform N comparisons for N pairs; they do not generate a cross
+product and do not build a BVH or partition index.
+
+The final geometry rule is identical to indexed finding: at least one
+positive-volume box intersection in **each** block. Wall contact is excluded.
+The first block is checked first. Densities and weights do not affect detection;
+a pair with zero weights can pass detection but have a zero integral. Integral
+calculation reuses the existing effective-weight equation and sorted box sweep.
+Detection and integration stay separate so that selected detection boxes can be
+used for finding, with full density boxes used for integrals.
+
+```python
+from bo import find_paired, overlap_paired, prepare_events
+left = prepare_events(events1)
+right = prepare_events(events2)
+mask = find_paired(left, right)
+values = overlap_paired(left, right)
+```
+
+For very large collections, call these functions on successive equal-length
+batches. Neither function loads raw sample files.

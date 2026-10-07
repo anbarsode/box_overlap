@@ -243,18 +243,17 @@ The executed [playground](playground.ipynb) contains all sample, density, trial,
 
 ## Fitted histogram-to-box relations
 
-Both fits use **13,430** pairs positive in both estimates. Set x to the histogram integral and y to the box integral. NumPy polyfit minimizes squared vertical residuals of log10(y) against log10(x); zero estimates stay in the scatter but are excluded from these logarithmic fits.
+The ARAK fit uses **13,430** pairs positive in both estimates. Set x to the histogram integral and y to the box integral. NumPy polyfit minimizes squared vertical residuals of log10(y) against log10(x); zero estimates stay in the scatter but are excluded from these logarithmic fits.
 
 | Degree | Coefficients, descending powers of log10(x) | RMS residual (dex) |
 | ---: | --- | ---: |
 | 1 | 0.589994209, 0.020239652 | 0.583628 |
-| 2 | 0.00341413873, 0.612168336, 0.0430794043 | 0.583385 |
 
-Degree 1: $y=10^{0.020240}x^{0.589994}$.
+ARAK power law: $y=10^{0.020240}x^{0.589994}$.
 
-Degree 2: $\log_{10}y=0.003414(\log_{10}x)^2+0.612168\log_{10}x+0.043079$.
+CAMP: 1,000 connected pairs, 710 positive in both estimates. Power law: $y=10^{0.120241}x^{0.634617}$. RMS residual: 0.349331 dex. Positive box integrals: 718; positive histogram integrals: 729.
 
-Degree 1 is a power law; degree 2 describes curvature in log space and is not a single constant-exponent power law. Fits are drawn within the observed positive histogram range, alongside y=x, with equations in the legend.
+CAMP constructs two fresh distributions around anchors drawn from a shared reference product. Finite samples and box approximations can still produce zero estimated intersections. Matching-pair detection uses the same exact block intersection kernel as indexed detection, without building a BVH. Matching-pair integrals use the same weighted kernel as all other integral interfaces. Samples are read one pair at a time; saved boxes are compact.
 
 ## Total computational cost and extrapolation
 
@@ -321,6 +320,7 @@ Values beyond 10,000 events are mathematical extrapolations, not measured or val
 | test_run.py | Passed | 0.253 |
 | test_histogram.py | Passed | 0.472 |
 | test_analysis_fits.py | Passed | 2.080 |
+| test_paired.py | Passed | 0.087 |
 
 Independent checks cover the full Cartesian separator procedure, disjointness, singleton removal, trial winners, probability warnings, binary round trips, alternate block dimensions, nonmonotonic sorted-loop upper bounds, boundary contact, effective weights, all four integral interfaces, partition cuts, consolidation, both check orders, selected detection boxes, empty inputs, bounded raw-sample loading, saved jobs and original event-ID mapping. Synthetic loss warnings are expected.
 

@@ -81,7 +81,8 @@ same default five/ten box trials as the live examples. Colors in the 100v1 and
 100v5 plots indicate intersection in both full blocks, although only 2D boxes
 are displayed. Histogram comparisons include every unordered pair among 1,000 events,
 using 24 bins per axis.
-The legend gives degree-1 and degree-2 log fits to pairs positive in both estimates.
+The legend gives separate linear power-law fits for ARAK and CAMP pairs positive
+in both estimates.
 Each cost component uses a degree-2 log fit on 100–10,000 events; their predicted
 seconds are summed for the total. Dashed curves
 show the mathematical continuation up to 100 million events.
@@ -102,6 +103,26 @@ Numeric values: [timings](pair_finder_results/timings.csv),
 [histogram comparisons](pair_finder_results/histogram_comparison.csv),
 [100v5 integrals](pair_finder_results/100v5.csv).
 '''))
+    if (ROOT/'validation/CAMP_results/comparison.json').exists():
+        notebook.cells.append(nbformat.v4.new_markdown_cell("""
+## CAMP: matching connected pairs
+
+Two independently realised PDFs share anchors from a common reference PDF.
+The methods below compare matching members only and build no BVH. Detection
+uses the same positive-volume intersection criterion in both blocks as indexed
+finding. Integrals use the same weighted box kernel. Raw samples are not loaded.
+
+![Example connected pair](CAMP_samples/event_0.jpg)
+"""))
+        notebook.cells.append(nbformat.v4.new_code_cell("""
+from bo import load_event_boxes, find_paired, overlap_paired
+camp_folder = project_root/'validation/CAMP_results/boxes'
+camp_left = [load_event_boxes(camp_folder/'event_0_0.boxes')]
+camp_right = [load_event_boxes(camp_folder/'event_0_1.boxes')]
+print('Matching-pair geometry:', find_paired(camp_left, camp_right))
+print('Matching-pair integral:', overlap_paired(camp_left, camp_right))
+print((camp_folder.parent/'comparison.json').read_text())
+"""))
     notebook.cells.append(nbformat.v4.new_markdown_cell('''
 ## Random trials, subdivision levels and block order
 
@@ -325,7 +346,7 @@ def write_report(result, checks, study, settings, timings, histogram):
         'Every saved notebook output is refreshed using this dataset.', '',
         ]
     lines += ['', '## Fitted histogram-to-box relations', '',
-        f'Both fits use **{fits["fit_pairs"]:,}** pairs positive in both estimates. '
+        f'The ARAK fit uses **{fits["fit_pairs"]:,}** pairs positive in both estimates. '
         'Set x to the histogram integral and y to the box integral. NumPy polyfit '
         'minimizes squared vertical residuals of log10(y) against log10(x); zero '
         'estimates stay in the scatter but are excluded from these logarithmic fits.', '',
@@ -334,13 +355,26 @@ def write_report(result, checks, study, settings, timings, histogram):
     for fit in fits['fits']:
         coefficients=', '.join(f'{c:.9g}' for c in fit['coefficients'])
         lines.append(f'| {fit["degree"]} | {coefficients} | {fit["rms_log10_residual"]:.6f} |')
-    b,c=fits['fits'][0]['coefficients'];a,b2,c2=fits['fits'][1]['coefficients']
-    lines += ['', f'Degree 1: $y=10^{{{c:.6f}}}x^{{{b:.6f}}}$.', '',
-        f'Degree 2: $\\log_{{10}}y={a:.6f}(\\log_{{10}}x)^2'
-        f'{b2:+.6f}\\log_{{10}}x{c2:+.6f}$.', '',
-        'Degree 1 is a power law; degree 2 describes curvature in log space and '
-        'is not a single constant-exponent power law. Fits are drawn within the '
-        'observed positive histogram range, alongside y=x, with equations in the legend.', '',
+    b,c=fits['fits'][0]['coefficients']
+    lines += ['', f'ARAK power law: $y=10^{{{c:.6f}}}x^{{{b:.6f}}}$.', '']
+    if 'CAMP' in fits:
+        camp = fits['CAMP']
+        b,c = camp['fits'][0]['coefficients']
+        camp_results = json.loads((folder/'CAMP_results/comparison.json').read_text())
+        lines += [f'CAMP: {camp["pairs"]:,} connected pairs, '
+                  f'{camp["fit_pairs"]:,} positive in both estimates. '
+                  f'Power law: $y=10^{{{c:.6f}}}x^{{{b:.6f}}}$. '
+                  f'RMS residual: {camp["fits"][0]["rms_log10_residual"]:.6f} dex. '
+                  f'Positive box integrals: {camp_results["positive_boxes"]}; '
+                  f'positive histogram integrals: {camp_results["positive_histograms"]}.', '',
+                  'CAMP constructs two fresh distributions around anchors drawn from a '
+                  'shared reference product. Finite samples and box approximations can '
+                  'still produce zero estimated intersections. Matching-pair detection '
+                  'uses the same exact block intersection kernel as indexed detection, '
+                  'without building a BVH. Matching-pair integrals use the same weighted '
+                  'kernel as all other integral interfaces. Samples are read one pair '
+                  'at a time; saved boxes are compact.', '']
+    lines += [
         '## Total computational cost and extrapolation', '',
         'For each panel, total cost sums generation, C++ preparation, index build, '
         'pair finding and filtered integration. One-vs-set includes building the '

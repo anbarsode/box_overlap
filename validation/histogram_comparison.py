@@ -91,7 +91,12 @@ def main():
                header='event_a,event_b,box_overlap,histogram_overlap')
     data=np.empty(len(pairs),dtype=[('box_overlap','f8'),('histogram_overlap','f8')])
     data['box_overlap']=fast;data['histogram_overlap']=histogram
-    fits=plot_overlap_comparison(data,args.events,args.bins,out/'histogram_comparison.jpg')
+    camp_path=ROOT/'validation/CAMP_results/histogram_comparison.csv'
+    connected=None
+    if camp_path.exists():
+        connected=np.genfromtxt(camp_path,delimiter=',',names=True)
+    fits=plot_overlap_comparison(data,args.events,args.bins,out/'histogram_comparison.jpg',
+                                connected=connected)
     settings.update(status='complete',pairs=len(pairs),completed_pairs=len(pairs))
     checkpoint()
     print(json.dumps({'settings':settings,'fits':fits},indent=2),flush=True)

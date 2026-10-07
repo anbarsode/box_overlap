@@ -1,7 +1,7 @@
 """Log-polynomial fits for overlap comparisons and measured computational costs.
 
-Degree 1 gives y=10**c * x**b. Degree 2 gives
-log10(y)=a*log10(x)**2+b*log10(x)+c, a curved relation rather than a pure power law.
+The scatterplot uses degree 1: y=10**c * x**b. Cost components use degree 2:
+log10(t)=a*log10(N)**2+b*log10(N)+c.
 Fits minimize squared vertical residuals in log10 space using numpy.polyfit.
 """
 from pathlib import Path
@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from validation.plot_style import plot_style
 
 
-def overlap_fits(histogram, boxes):
+def overlap_fits(histogram, boxes, degrees=(1,)):
     """Fit box (y) against histogram (x), using only pairs positive in both.
 
     Return the selected count, descending-power coefficients and RMS residuals
@@ -25,7 +25,7 @@ def overlap_fits(histogram, boxes):
     positive = (histogram>0)&(boxes>0)
     x, y = np.log10(histogram[positive]), np.log10(boxes[positive])
     fits = []
-    for degree in (1,2):
+    for degree in degrees:
         coefficients = np.polyfit(x,y,degree)
         residual = y-np.polyval(coefficients,x)
         fits.append({'degree':degree, 'coefficients':coefficients.tolist(),
@@ -35,8 +35,8 @@ def overlap_fits(histogram, boxes):
             'x_max':float(histogram[positive].max())}
 
 
-def plot_overlap_comparison(data, events, bins, output):
-    """Plot all pair estimates, equality and both fitted log-space relations.
+def plot_overlap_comparison(data, events, bins, output, connected=None):
+    """Plot all pair estimates, equality and separate power laws for ARAK and CAMP.
 
     data is a structured array with box_overlap and histogram_overlap columns.
     output is a JPG filename; a matching *_fits.json records equations and counts.
@@ -51,20 +51,26 @@ def plot_overlap_comparison(data, events, bins, output):
                   zero_box_positive_histogram=int(np.count_nonzero((y==0)&(x>0))))
     plt = plot_style()
     fig, ax = plt.subplots(figsize=(11,8))
-    ax.scatter(x,y,s=3,alpha=.16,color='navy',rasterized=True,label='Event-pair estimates')
+    ax.scatter(x,y,s=3,alpha=.16,color='navy',rasterized=True,label='ARAK pairs')
+    if connected is not None:
+        cx, cy = connected['histogram_overlap'], connected['box_overlap']
+        ax.scatter(cx, cy, s=12, alpha=.5, color='coral', label='CAMP connected pairs')
+        result['CAMP'] = overlap_fits(cx, cy)
+        result['CAMP']['pairs'] = len(connected)
     limit = max(x.max(),y.max())
+    if connected is not None:
+        limit = max(limit, cx.max(), cy.max())
     ax.plot([0,limit],[0,limit],color='gold',linestyle='--',label=r'Equality: $y=x$')
     grid = np.geomspace(result['x_min'],result['x_max'],300)
-    for fit, color in zip(result['fits'],('crimson','teal')):
-        coefficients = fit['coefficients']
-        if fit['degree']==1:
-            b,c = coefficients
-            label = rf'Degree 1: $y=10^{{{c:.3f}}}x^{{{b:.3f}}}$'
-        else:
-            a,b,c = coefficients
-            label = (rf'Degree 2: $\log_{{10}}y={a:.3f}(\log_{{10}}x)^2'
-                     rf'{b:+.3f}\log_{{10}}x{c:+.3f}$')
-        ax.plot(grid,10**np.polyval(coefficients,np.log10(grid)),color=color,label=label)
+    b, c = result['fits'][0]['coefficients']
+    ax.plot(grid, 10**c*grid**b, color='crimson',
+            label=rf'ARAK: $y=10^{{{c:.3f}}}x^{{{b:.3f}}}$')
+    if connected is not None:
+        camp = result['CAMP']
+        b, c = camp['fits'][0]['coefficients']
+        grid = np.geomspace(camp['x_min'], camp['x_max'], 300)
+        ax.plot(grid, 10**c*grid**b, color='coral',
+                label=rf'CAMP: $y=10^{{{c:.3f}}}x^{{{b:.3f}}}$')
     threshold = limit*1e-6
     ax.set_xscale('symlog',linthresh=threshold);ax.set_yscale('symlog',linthresh=threshold)
     # Remove tiny linear-region decade labels that otherwise collide with zero.
@@ -77,6 +83,9 @@ def plot_overlap_comparison(data, events, bins, output):
     ax.set_ylabel('Exact density-box overlap, y')
     ax.set_title(f'{events:,} events; {len(data):,} pairs; {bins} bins per axis\n'
                  f'Fits use {result["fit_pairs"]:,} pairs positive in both estimates')
+    if connected is not None:
+        ax.set_title(f'ARAK: {len(data):,} pairs; CAMP: {len(connected):,} pairs; '
+                     f'{bins} bins per axis')
     ax.legend(fontsize=11);ax.grid(alpha=.15)
     fig.tight_layout();fig.savefig(output,dpi=200);plt.close(fig)
     output = Path(output)

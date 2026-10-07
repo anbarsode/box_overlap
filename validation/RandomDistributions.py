@@ -3,6 +3,7 @@
 The public model classes hold only realised parameters: ``ARAK`` is an
 anchored residual-autoregressive kernel, ``ARAKMixture`` is a finite bounded
 mixture, and ``ARAKMixtureProduct`` is an independent Cartesian product.
+``ConnectedARAKMixtureProduct`` holds several related realised distributions.
 ``RandomDistribution`` owns the optional construction RNG and draws those
 realised parameters from qualitative controls.
 """
@@ -843,6 +844,72 @@ class ARAKMixtureProduct:
     sample = rvs
 
 
+class ConnectedARAKMixtureProduct:
+    """A group of related, independently realised distributions.
+
+    This is the result of :meth:`RandomDistribution.camp`.  It is a small
+    container rather than one PDF: each item in ``distributions`` is its own
+    normalized :class:`ARAKMixtureProduct`. The distributions use the same input
+    settings, but their random kernels and modes are different.
+
+    Parameters
+    ----------
+    reference_distribution:
+        The temporary distribution from which connection anchors were drawn. It is
+        kept so the construction can be inspected, but it is not one of the
+        final distributions.
+    anchors:
+        ``(n_distributions, dimension)`` points drawn from
+        ``reference_distribution``. Anchor ``i`` is the reference centre
+        supplied to final distribution ``i``.
+    distributions:
+        Final independently realised distributions. Their order matches
+        ``anchors``.
+
+    :class:`ARAKMixtureProduct` with its usual ``pdf`` and ``rvs`` methods.
+    Iteration and indexing return final distributions, so ``group[i]`` is an
+    :class:`ARAKMixtureProduct` with its usual ``pdf`` and ``rvs`` methods.
+    :class:`ARAKMixtureProduct` with its usual ``pdf`` and ``rvs`` methods.
+    """
+
+    def __init__(
+        self,
+        reference_distribution: ARAKMixtureProduct,
+        anchors: ArrayLike,
+        distributions: Sequence[ARAKMixtureProduct],
+    ) -> None:
+        if not isinstance(reference_distribution, ARAKMixtureProduct):
+            raise TypeError("reference_distribution must be an ARAKMixtureProduct")
+        if not isinstance(distributions, Sequence) or isinstance(distributions, (str, bytes)):
+            raise TypeError("distributions must be a sequence of ARAKMixtureProduct instances")
+        if not all(isinstance(distribution, ARAKMixtureProduct) for distribution in distributions):
+            raise TypeError("distributions must contain only ARAKMixtureProduct instances")
+        locations = np.asarray(anchors, dtype=float)
+        if locations.ndim != 2 or locations.shape != (len(distributions), reference_distribution.d):
+            raise ValueError("anchors must have shape (len(distributions), reference_distribution.d)")
+        if not np.all(np.isfinite(locations)):
+            raise ValueError("anchors must be finite")
+        if any(distribution.d != reference_distribution.d for distribution in distributions):
+            raise ValueError("every final distribution must have the reference distribution dimension")
+        self.reference_distribution = reference_distribution
+        self.anchors = locations
+        self.distributions = tuple(distributions)
+        self.d = reference_distribution.d
+        self.D = self.d
+
+    def __len__(self) -> int:
+        """Return the number of final connected distributions."""
+        return len(self.distributions)
+
+    def __getitem__(self, index: int) -> ARAKMixtureProduct:
+        """Return one final distribution by index."""
+        return self.distributions[index]
+
+    def __iter__(self):
+        """Iterate over the final distributions in anchor order."""
+        return iter(self.distributions)
+
+
 class RandomDistribution:
     """Build random ARAKs, mixtures, and products from qualitative settings.
 
@@ -854,7 +921,9 @@ class RandomDistribution:
     calibrate the result to a unit box. The ``mixture`` method draws mode
     shapes, later-mode weights and scales, and later-mode centres. It then
     returns a deterministic mixture with the requested global bounds. The
-    ``product`` method joins independently generated mixture blocks.
+    ``product`` method joins independently generated mixture blocks. The
+    ``camp`` method makes several fresh distributions around samples from one
+    temporary reference distribution.
     """
 
     def __init__(self, random_state: Optional[Union[int, np.random.Generator]] = None) -> None:
@@ -1263,10 +1332,108 @@ class RandomDistribution:
             raise ValueError("provide mixture_settings or mixtures")
         return ARAKMixtureProduct([self.mixture(**dict(settings)) for settings in mixture_settings])
 
+    @staticmethod
+    def _centred_block_settings(
+        mixture_settings: Sequence[Mapping[str, object]], center: ArrayLike,
+    ) -> list[dict[str, object]]:
+        """Copy block settings after placing each block's reference at ``center``."""
+        location = np.asarray(center, dtype=float)
+        if location.ndim != 1 or not np.all(np.isfinite(location)):
+            raise ValueError("center must be a finite one-dimensional coordinate")
+        copied: list[dict[str, object]] = []
+        offset = 0
+        for block in mixture_settings:
+            if not isinstance(block, Mapping):
+                raise TypeError("mixture_settings must contain keyword mappings")
+            settings = dict(block)
+            if "dimension" in settings:
+                dimension = settings["dimension"]
+                if not isinstance(dimension, Integral) or dimension < 1:
+                    raise ValueError("each mixture setting dimension must be a positive integer")
+                d = int(dimension)
+            elif "component_centers" in settings:
+                centres = np.asarray(settings["component_centers"], dtype=float)
+                if centres.ndim != 2 or centres.shape[0] < 1:
+                    raise ValueError("component_centers must have shape (n_components, dimension)")
+                d = centres.shape[1]
+            else:
+                raise ValueError("each CAMP mixture setting needs dimension or component_centers")
+            target = location[offset:offset + d]
+            if target.shape != (d,):
+                raise ValueError("center length must equal the total product dimension")
+            if "component_centers" in settings:
+                centres = np.asarray(settings["component_centers"], dtype=float)
+                settings["component_centers"] = centres + target - centres[0]
+            else:
+                settings["reference_center"] = target
+            copied.append(settings)
+            offset += d
+        if offset != len(location):
+            raise ValueError("center length must equal the total product dimension")
+        return copied
+
+    def camp(
+        self,
+        n_distributions: int,
+        mixture_settings: Sequence[Mapping[str, object]],
+        *,
+        center: Optional[ArrayLike] = None,
+    ) -> ConnectedARAKMixtureProduct:
+        """Build connected, independently realised ARAK mixture distributions.
+
+        CAMP first builds one temporary distribution from ``mixture_settings``
+        at ``center`` and draws ``n_distributions`` anchor points from it. It
+        then builds one new distribution around each anchor, using the same settings but
+        fresh random ARAKs, mode weights, scales, and offsets. An anchor is a
+        point with probability under the temporary distribution, so the final
+        distributions are placed in a common populated region rather than at
+        unrelated random locations.
+
+        Parameters
+        ----------
+        n_distributions:
+            Number of final distributions. It must be a positive integer.
+        mixture_settings:
+            One keyword dictionary for each distribution coordinate block, using
+            the arguments of :meth:`mixture`. Random blocks need ``dimension``.
+            Exact blocks may instead provide ``component_centers``. Settings
+            are copied and never modified. The same block settings are used
+            for the temporary distribution and every final distribution.
+        center:
+            Full coordinate of the temporary distribution's first mode in every
+            block. Its length is the sum of block dimensions. If omitted, a
+            random block uses its usual zero ``reference_center``; an exact
+            block keeps its supplied first component centre. Each final
+            distribution receives one sampled anchor as its corresponding centre.
+
+        Returns
+        -------
+        ConnectedARAKMixtureProduct
+            A container with ``reference_distribution``, sampled ``anchors``, and
+            the requested final ``distributions``. Indexing or iterating it yields
+            normal deterministic :class:`ARAKMixtureProduct` objects.
+        """
+        if not isinstance(n_distributions, Integral) or n_distributions < 1:
+            raise ValueError("n_distributions must be a positive integer")
+        if not isinstance(mixture_settings, Sequence) or isinstance(mixture_settings, (str, bytes)) or not mixture_settings:
+            raise TypeError("mixture_settings must be a non-empty sequence of keyword mappings")
+
+        seed_settings = [dict(settings) for settings in mixture_settings]
+        if center is not None:
+            seed_settings = self._centred_block_settings(seed_settings, center)
+        reference_distribution = self.product(seed_settings)
+        anchors = reference_distribution.rvs(int(n_distributions), random_state=self.rng)
+        distributions = [
+            self.product(self._centred_block_settings(mixture_settings, anchor))
+            for anchor in anchors
+        ]
+        return ConnectedARAKMixtureProduct(reference_distribution, anchors, distributions)
+
 
 __all__ = [
     "ARAK",
     "ARAKMixture",
     "ARAKMixtureProduct",
+    "ConnectedARAKMixtureProduct",
     "RandomDistribution",
 ]

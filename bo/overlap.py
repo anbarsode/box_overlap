@@ -168,3 +168,26 @@ def find_candidate_1vN(event, events_or_index) -> np.ndarray:
     used. Supply an explicit index to select partition settings.
     """
     return _core().find_candidate_1vN(prepare_event(event), build_index(events_or_index))
+
+
+def find_paired(events1, events2) -> np.ndarray:
+    """Return a Boolean mask for matching pairs (events1[i], events2[i]).
+
+    Equal-length sets are required. Check positive-volume intersection in both
+    blocks, 3D first by default, using the exact same block_intersects kernel
+    as indexed finding. No BVH is constructed. Densities/weights are ignored.
+    Supply selected detection boxes here and full boxes to overlap_paired if desired.
+    Output and number of comparisons grow linearly with the number of pairs.
+    """
+    return _core().find_paired(prepare_events(events1), prepare_events(events2))
+
+
+def overlap_paired(events1, events2) -> np.ndarray:
+    """Return integrals of matching pairs, preserving order, including zeros.
+
+    This is an elementwise (dot-like) comparison, not a Cartesian cross product:
+    output[i] = overlap_1v1(events1[i], events2[i]). Equal lengths are required.
+    Uses the existing weighted integral kernel; no BVH or raw samples are used.
+    For bounded memory, call with successive equal-length batches of prepared boxes.
+    """
+    return _core().overlap_paired(prepare_events(events1), prepare_events(events2))

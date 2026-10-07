@@ -17,7 +17,7 @@ def test_fits():
     assert fit['fit_pairs']==100
     np.testing.assert_allclose(fit['fits'][0]['coefficients'],[.6,2.],atol=1e-13)
     z=np.log10(x)
-    fit=overlap_fits(x,10**(.08*z*z+.6*z+2))
+    fit=overlap_fits(x,10**(.08*z*z+.6*z+2), degrees=(1,2))
     np.testing.assert_allclose(fit['fits'][1]['coefficients'],[.08,.6,2.],atol=1e-13)
     n=np.geomspace(100,10000,15)
     coefficients = {

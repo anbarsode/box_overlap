@@ -433,6 +433,28 @@ PYBIND11_MODULE(_overlap, m) {
         py::gil_scoped_release release;
         return event_overlap(a, b);
     });
+    // Matching pairs only: no event tree, partitions, or cross product.
+    m.def("find_paired", [](const Events& a, const Events& b) {
+        if (a.values.size() != b.values.size())
+            throw std::invalid_argument("Matching event sets must have equal lengths");
+        py::array_t<bool> result(a.values.size());
+        bool* output = result.mutable_data();
+        py::gil_scoped_release release;
+        for (size_t i = 0; i < a.values.size(); ++i)
+            output[i] = block_intersects(a.values[i]->blocks[0], b.values[i]->blocks[0]) &&
+                        block_intersects(a.values[i]->blocks[1], b.values[i]->blocks[1]);
+        return result;
+    });
+    m.def("overlap_paired", [](const Events& a, const Events& b) {
+        if (a.values.size() != b.values.size())
+            throw std::invalid_argument("Matching event sets must have equal lengths");
+        py::array_t<double> result(a.values.size());
+        double* output = result.mutable_data();
+        py::gil_scoped_release release;
+        for (size_t i = 0; i < a.values.size(); ++i)
+            output[i] = event_overlap(*a.values[i], *b.values[i]);
+        return result;
+    });
     m.def("overlap_1vN", [](const Event& a, const Events& events) {
         py::array_t<double> result(events.values.size());
         double* output = result.mutable_data();
