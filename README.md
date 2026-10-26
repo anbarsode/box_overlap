@@ -11,3 +11,4 @@ geometrically overlapping event pairs, and integrate their box densities in C++.
 Use the `gw` environment. Code lives in `bo`; tests and the notebook live in
 `validation`. Raw samples are processed one event at a time. Saved compact boxes
 can be reused for later overlap calculations.
+this is a test for GIT
