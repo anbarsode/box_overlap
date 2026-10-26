@@ -1,0 +1,22 @@
+{
+  "ntrial": [
+    5,
+    10
+  ],
+  "subdivisions": [
+    0,
+    3
+  ],
+  "dataset_events": 10000,
+  "batch_events": 64,
+  "histogram_bins": 48,
+  "seed": "91 + event index",
+  "status": "complete",
+  "block_order": [
+    0,
+    1
+  ],
+  "retained_probability_min": 0.9987004000000002,
+  "retained_probability_mean": 0.9997674526910001,
+  "events_losing_over_point_one_percent": 7
+}

@@ -1,0 +1,240 @@
+{
+  "status": "all passed",
+  "environment": "gw",
+  "events": 10000,
+  "study_events": 1000,
+  "jobs": [
+    {
+      "command": [
+        "/home/ankur/micromamba/envs/gw/bin/python",
+        "-m",
+        "bo.build_overlap"
+      ],
+      "exit_code": 0,
+      "wall_s": 15.199994273018092,
+      "log": "validation/analysis_logs/job_00.log"
+    },
+    {
+      "command": [
+        "/home/ankur/micromamba/envs/gw/bin/python",
+        "validation/test_event_boxes.py"
+      ],
+      "exit_code": 0,
+      "wall_s": 0.30253467499278486,
+      "log": "validation/analysis_logs/job_01.log"
+    },
+    {
+      "command": [
+        "/home/ankur/micromamba/envs/gw/bin/python",
+        "validation/test_overlap.py"
+      ],
+      "exit_code": 0,
+      "wall_s": 1.306618044996867,
+      "log": "validation/analysis_logs/job_02.log"
+    },
+    {
+      "command": [
+        "/home/ankur/micromamba/envs/gw/bin/python",
+        "validation/test_pair_finder.py"
+      ],
+      "exit_code": 0,
+      "wall_s": 4.44257071899483,
+      "log": "validation/analysis_logs/job_03.log"
+    },
+    {
+      "command": [
+        "/home/ankur/micromamba/envs/gw/bin/python",
+        "validation/test_sample_streaming.py"
+      ],
+      "exit_code": 0,
+      "wall_s": 0.2755225829896517,
+      "log": "validation/analysis_logs/job_04.log"
+    },
+    {
+      "command": [
+        "/home/ankur/micromamba/envs/gw/bin/python",
+        "validation/test_run.py"
+      ],
+      "exit_code": 0,
+      "wall_s": 0.2530691639985889,
+      "log": "validation/analysis_logs/job_05.log"
+    },
+    {
+      "command": [
+        "/home/ankur/micromamba/envs/gw/bin/python",
+        "validation/rejection_study.py",
+        "--events",
+        "1000"
+      ],
+      "exit_code": 0,
+      "wall_s": 33.13512574401102,
+      "log": "validation/analysis_logs/job_06.log"
+    },
+    {
+      "command": [
+        "/home/ankur/micromamba/envs/gw/bin/python",
+        "validation/compare_rejection.py",
+        "--events",
+        "10000",
+        "--compare-levels",
+        "1",
+        "2",
+        "3",
+        "--ntrial",
+        "5",
+        "10",
+        "--batch-events",
+        "64",
+        "--output",
+        "validation/comparison_results"
+      ],
+      "exit_code": 0,
+      "wall_s": 401.30188095598714,
+      "log": "validation/analysis_logs/job_07.log"
+    },
+    {
+      "command": [
+        "/home/ankur/micromamba/envs/gw/bin/python",
+        "validation/validate_pair_finder.py",
+        "--max-events",
+        "10000",
+        "--ntrial",
+        "5",
+        "10",
+        "--subdivisions",
+        "0",
+        "3",
+        "--batch-events",
+        "64",
+        "--histogram-bins",
+        "48"
+      ],
+      "exit_code": 0,
+      "wall_s": 374.10530363800353,
+      "log": "validation/analysis_logs/job_08.log"
+    },
+    {
+      "command": [
+        "/home/ankur/micromamba/envs/gw/bin/python",
+        "validation/test_histogram.py"
+      ],
+      "exit_code": 0,
+      "wall_s": 0.47191417499561794,
+      "log": "validation/analysis_logs/test_histogram.log"
+    },
+    {
+      "command": [
+        "/home/ankur/micromamba/envs/gw/bin/python",
+        "validation/test_analysis_fits.py"
+      ],
+      "exit_code": 0,
+      "wall_s": 2.0804748489754274,
+      "log": "validation/analysis_logs/test_analysis_fits.log",
+      "returncode": 0
+    },
+    {
+      "command": [
+        "/home/ankur/micromamba/envs/gw/bin/python",
+        "validation/test_paired.py"
+      ],
+      "exit_code": 0,
+      "wall_s": 0.08659127600003558,
+      "log": "validation/analysis_logs/test_paired.log"
+    }
+  ],
+  "input_metadata_sha256": "dd335ea090ed705a88080e5f7abc81dbc13fdf179f265affd4d19859e2626182",
+  "input_metadata_sha256_after": "dd335ea090ed705a88080e5f7abc81dbc13fdf179f265affd4d19859e2626182",
+  "source_sha256": {
+    "bo/run.py": "00cbc99ac29009e38299ea7c2669b2dfbaec11a88b1f014932d9b35dc7363ebb",
+    "bo/build_overlap.py": "5fb5221a6e50774dc8b098aa5e74b1dc21be10464aad07b986b7484cfb617093",
+    "bo/__init__.py": "5325ec4ed558e3a4a43311da75b974273f882730593d4daa38589f9e5e9c47af",
+    "bo/overlap.py": "47d881b4e30a3033e2d8a2a6f090a999444e88d90d14b9fcda13859a09406c17",
+    "bo/event_boxes.py": "665f06051cda3b05527f65c7ee759fcb23c696eb25c8c2c1115433b5849e99c6",
+    "bo/overlap_core.cpp": "156b0a0e27d13e0bfbab8b0136105010a7e5b7679a01da79042a44082a7ddf5f"
+  },
+  "notebook": {
+    "status": "executed without cell errors",
+    "wall_s": 9.92095304500026,
+    "selected_pair": [
+      567,
+      877
+    ]
+  },
+  "histogram_analysis": {
+    "status": "complete",
+    "events": 1000,
+    "bins": 24,
+    "ntrial": [
+      5,
+      10
+    ],
+    "seed": 91,
+    "n_centers": [
+      4,
+      8
+    ],
+    "input_metadata_sha256": "06e07c63826aac1e36f43e9c9f199fdaa6b5df74b97b052c54f3dc138f93bfbd",
+    "histogram_method": "exact serial C++ counts, NumPy uniform edges",
+    "generation_and_preparation_s": 31.321782446990255,
+    "box_overlap_s": 0.5524666480196174,
+    "completed_pairs": 499500,
+    "histogram_elapsed_s": 60.15687452899874,
+    "histogram_s": 79.4702375229972,
+    "explicitly_counted_pairs": 48672,
+    "exact_zero_bin_rejections": 450828,
+    "pairs": 499500
+  },
+  "analysis_source_sha256": {
+    "validation/histogram_core.cpp": "dfb81ad75b6c75229ff727778f5c0b87829fe4066ca8e9fdf9dc10d6980605cb",
+    "validation/histogram_overlap.py": "61453bb6a5c9e5354fc730a38a7c29f57ac05c64988de3c3053f2f332c27b89f",
+    "validation/histogram_comparison.py": "53281a0a614aa5052242e78396735e631459ed625dcbd758446b4600238edee7",
+    "validation/analysis_plots.py": "56a76d378eb7f3a94207f406c4e8d79e5348e7a1a972210ce41969f69358dad9",
+    "validation/camp_comparison.py": "88f350f76efc0334b2d17ade7dd7f0fd9153096051a75c46da8fc3f164b0c6e5",
+    "validation/create_CAMP_samples.py": "bf83aaa470812a727dd03cbe13233c020f7e5c2539a50022708dd0c0e218c600",
+    "validation/test_paired.py": "70d7fd4d564d78ea863117ec474c0abbffd55c3dc66cdab07852a4adedefa68d",
+    "bo/overlap_core.cpp": "c52e01a052c422c17402070cab3580239ffb195df0c3cffe703c69a2b3696f71",
+    "bo/overlap.py": "5fa877451205aa3ad17f36c1b939f361fc49b2304f09042c94cb5415227d590e"
+  },
+  "CAMP": {
+    "pairs": 1000,
+    "bins": 24,
+    "seed": 91,
+    "ntrial": [
+      5,
+      10
+    ],
+    "n_centers": [
+      4,
+      8
+    ],
+    "positive_boxes": 718,
+    "positive_histograms": 729,
+    "retained_probability_mean": 0.9997672133000001,
+    "checker_agrees_with_index_first_pairs": 20,
+    "all_integrals_agree_with_1v1": true,
+    "fits": {
+      "fit_pairs": 710,
+      "fits": [
+        {
+          "degree": 1,
+          "coefficients": [
+            0.6346165638050364,
+            0.12024090971689251
+          ],
+          "rms_log10_residual": 0.3493308112819233
+        }
+      ],
+      "x_min": 3.895803886976113e-06,
+      "x_max": 217.95195834132713,
+      "pairs": 1000
+    },
+    "histograms_agree_with_numpy_first_pairs": 20,
+    "saved_box_batch_roundtrip_pairs": 1000,
+    "generation_settings": {
+      "n_pairs": 1000,
+      "n_samples": 10000,
+      "n_plots": 100,
+      "seed": 20261007
+    }
+  }
+}

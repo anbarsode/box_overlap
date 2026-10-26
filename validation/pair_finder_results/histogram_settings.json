@@ -1,0 +1,24 @@
+{
+  "status": "complete",
+  "events": 1000,
+  "bins": 24,
+  "ntrial": [
+    5,
+    10
+  ],
+  "seed": 91,
+  "n_centers": [
+    4,
+    8
+  ],
+  "input_metadata_sha256": "06e07c63826aac1e36f43e9c9f199fdaa6b5df74b97b052c54f3dc138f93bfbd",
+  "histogram_method": "exact serial C++ counts, NumPy uniform edges",
+  "generation_and_preparation_s": 31.321782446990255,
+  "box_overlap_s": 0.5524666480196174,
+  "completed_pairs": 499500,
+  "histogram_elapsed_s": 60.15687452899874,
+  "histogram_s": 79.4702375229972,
+  "explicitly_counted_pairs": 48672,
+  "exact_zero_bin_rejections": 450828,
+  "pairs": 499500
+}

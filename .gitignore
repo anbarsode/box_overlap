@@ -1,5 +1,4 @@
 validation/ARAK_samples
-validation/pair_finder_results
 __pycache__
 .ipynb_checkpoints
 .serena/
@@ -7,22 +6,13 @@ __pycache__
 # Locally compiled Python extensions
 *.so
 
-validation/pair_finder_results_previous_single_trial
-
-validation/pair_finder_results_two_levels_2d_first
-
-validation/regenerated_comparison_results
-
-validation/CAMP_results
+validation/CAMP_samples
+validation/CAMP_results/boxes
 
 # Generated production and notebook output
 /event_boxes/
-/overlap_results*/
-validation/notebook_results/
 
-*.json
 *.npy
-*.jpg
 *.png
 *.csv
 *.log

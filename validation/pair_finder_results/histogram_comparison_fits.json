@@ -1,0 +1,38 @@
+{
+  "fit_pairs": 13430,
+  "fits": [
+    {
+      "degree": 1,
+      "coefficients": [
+        0.5899942089818971,
+        0.02023965199503023
+      ],
+      "rms_log10_residual": 0.5836279036787054
+    }
+  ],
+  "x_min": 5.979780273850369e-11,
+  "x_max": 82.90683925167336,
+  "events": 1000,
+  "bins": 24,
+  "pairs": 499500,
+  "zero_box": 481578,
+  "zero_histogram": 484565,
+  "positive_box_zero_histogram": 4492,
+  "zero_box_positive_histogram": 1505,
+  "CAMP": {
+    "fit_pairs": 710,
+    "fits": [
+      {
+        "degree": 1,
+        "coefficients": [
+          0.6346165638050364,
+          0.12024090971689251
+        ],
+        "rms_log10_residual": 0.3493308112819233
+      }
+    ],
+    "x_min": 3.895803886976113e-06,
+    "x_max": 217.95195834132713,
+    "pairs": 1000
+  }
+}

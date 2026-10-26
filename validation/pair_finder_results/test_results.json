@@ -1,0 +1,22 @@
+{
+  "environment": "gw",
+  "status": "all passed",
+  "scripts": [
+    "test_event_boxes.py",
+    "test_overlap.py",
+    "test_pair_finder.py",
+    "test_sample_streaming.py"
+  ],
+  "cpp_source_sha256": "9c25686989619bd256a21955ec6fd03b26db4266732f546293f678b221265a49",
+  "notebook": "executed and saved",
+  "analysis_endpoint": 10000,
+  "subdivisions": [
+    0,
+    3
+  ],
+  "block_order": [
+    0,
+    1
+  ],
+  "analysis_stop_reason": "final rejection 85.86%, below 95% continuation threshold"
+}

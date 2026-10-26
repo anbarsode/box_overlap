@@ -1,0 +1,397 @@
+{
+  "configurations": [
+    {
+      "ntrial": [
+        1,
+        1
+      ],
+      "subdivisions": [
+        0,
+        0
+      ],
+      "block_order": [
+        0,
+        1
+      ],
+      "events": 1000,
+      "generation_s": 5.535897511988878,
+      "index_build_s": 0.0019677810196299106,
+      "find_s": 0.06259673202293925,
+      "candidates": 44716,
+      "pairs": 21163,
+      "candidate_rejection": 0.9104784784784785,
+      "pair_rejection": 0.9576316316316317,
+      "retained_probability_mean": 0.99979700924,
+      "retained_probability_min": 0.9987003600000001
+    },
+    {
+      "ntrial": [
+        1,
+        1
+      ],
+      "subdivisions": [
+        0,
+        0
+      ],
+      "block_order": [
+        1,
+        0
+      ],
+      "events": 1000,
+      "generation_s": 5.535897511988878,
+      "index_build_s": 0.002103798004100099,
+      "find_s": 0.051597790006781,
+      "candidates": 44716,
+      "pairs": 21163,
+      "candidate_rejection": 0.9104784784784785,
+      "pair_rejection": 0.9576316316316317,
+      "retained_probability_mean": 0.99979700924,
+      "retained_probability_min": 0.9987003600000001
+    },
+    {
+      "ntrial": [
+        1,
+        1
+      ],
+      "subdivisions": [
+        0,
+        1
+      ],
+      "block_order": [
+        0,
+        1
+      ],
+      "events": 1000,
+      "generation_s": 5.535897511988878,
+      "index_build_s": 0.02295279799727723,
+      "find_s": 0.04995399201288819,
+      "candidates": 33550,
+      "pairs": 21163,
+      "candidate_rejection": 0.9328328328328328,
+      "pair_rejection": 0.9576316316316317,
+      "retained_probability_mean": 0.99979700924,
+      "retained_probability_min": 0.9987003600000001
+    },
+    {
+      "ntrial": [
+        1,
+        1
+      ],
+      "subdivisions": [
+        0,
+        1
+      ],
+      "block_order": [
+        1,
+        0
+      ],
+      "events": 1000,
+      "generation_s": 5.535897511988878,
+      "index_build_s": 0.01992402400355786,
+      "find_s": 0.048526799015235156,
+      "candidates": 33550,
+      "pairs": 21163,
+      "candidate_rejection": 0.9328328328328328,
+      "pair_rejection": 0.9576316316316317,
+      "retained_probability_mean": 0.99979700924,
+      "retained_probability_min": 0.9987003600000001
+    },
+    {
+      "ntrial": [
+        1,
+        1
+      ],
+      "subdivisions": [
+        0,
+        2
+      ],
+      "block_order": [
+        0,
+        1
+      ],
+      "events": 1000,
+      "generation_s": 5.535897511988878,
+      "index_build_s": 0.03594448301009834,
+      "find_s": 0.058576426992658526,
+      "candidates": 28488,
+      "pairs": 21163,
+      "candidate_rejection": 0.9429669669669669,
+      "pair_rejection": 0.9576316316316317,
+      "retained_probability_mean": 0.99979700924,
+      "retained_probability_min": 0.9987003600000001
+    },
+    {
+      "ntrial": [
+        1,
+        1
+      ],
+      "subdivisions": [
+        0,
+        2
+      ],
+      "block_order": [
+        1,
+        0
+      ],
+      "events": 1000,
+      "generation_s": 5.535897511988878,
+      "index_build_s": 0.0328440870216582,
+      "find_s": 0.05813737097196281,
+      "candidates": 28488,
+      "pairs": 21163,
+      "candidate_rejection": 0.9429669669669669,
+      "pair_rejection": 0.9576316316316317,
+      "retained_probability_mean": 0.99979700924,
+      "retained_probability_min": 0.9987003600000001
+    },
+    {
+      "ntrial": [
+        1,
+        1
+      ],
+      "subdivisions": [
+        0,
+        3
+      ],
+      "block_order": [
+        0,
+        1
+      ],
+      "events": 1000,
+      "generation_s": 5.535897511988878,
+      "index_build_s": 0.05503982599475421,
+      "find_s": 0.07919626400689594,
+      "candidates": 26394,
+      "pairs": 21163,
+      "candidate_rejection": 0.9471591591591592,
+      "pair_rejection": 0.9576316316316317,
+      "retained_probability_mean": 0.99979700924,
+      "retained_probability_min": 0.9987003600000001
+    },
+    {
+      "ntrial": [
+        1,
+        1
+      ],
+      "subdivisions": [
+        0,
+        3
+      ],
+      "block_order": [
+        1,
+        0
+      ],
+      "events": 1000,
+      "generation_s": 5.535897511988878,
+      "index_build_s": 0.04853708000155166,
+      "find_s": 0.08626083302078769,
+      "candidates": 26394,
+      "pairs": 21163,
+      "candidate_rejection": 0.9471591591591592,
+      "pair_rejection": 0.9576316316316317,
+      "retained_probability_mean": 0.99979700924,
+      "retained_probability_min": 0.9987003600000001
+    },
+    {
+      "ntrial": [
+        5,
+        10
+      ],
+      "subdivisions": [
+        0,
+        0
+      ],
+      "block_order": [
+        0,
+        1
+      ],
+      "events": 1000,
+      "generation_s": 24.335642820980866,
+      "index_build_s": 0.002621316001750529,
+      "find_s": 0.07538185900193639,
+      "candidates": 44715,
+      "pairs": 17922,
+      "candidate_rejection": 0.9104804804804805,
+      "pair_rejection": 0.9641201201201202,
+      "retained_probability_mean": 0.9997649134200001,
+      "retained_probability_min": 0.9987004000000002
+    },
+    {
+      "ntrial": [
+        5,
+        10
+      ],
+      "subdivisions": [
+        0,
+        0
+      ],
+      "block_order": [
+        1,
+        0
+      ],
+      "events": 1000,
+      "generation_s": 24.335642820980866,
+      "index_build_s": 0.0022859850141685456,
+      "find_s": 0.06015586497960612,
+      "candidates": 44715,
+      "pairs": 17922,
+      "candidate_rejection": 0.9104804804804805,
+      "pair_rejection": 0.9641201201201202,
+      "retained_probability_mean": 0.9997649134200001,
+      "retained_probability_min": 0.9987004000000002
+    },
+    {
+      "ntrial": [
+        5,
+        10
+      ],
+      "subdivisions": [
+        0,
+        1
+      ],
+      "block_order": [
+        0,
+        1
+      ],
+      "events": 1000,
+      "generation_s": 24.335642820980866,
+      "index_build_s": 0.018341179995331913,
+      "find_s": 0.05553242500172928,
+      "candidates": 32651,
+      "pairs": 17922,
+      "candidate_rejection": 0.9346326326326326,
+      "pair_rejection": 0.9641201201201202,
+      "retained_probability_mean": 0.9997649134200001,
+      "retained_probability_min": 0.9987004000000002
+    },
+    {
+      "ntrial": [
+        5,
+        10
+      ],
+      "subdivisions": [
+        0,
+        1
+      ],
+      "block_order": [
+        1,
+        0
+      ],
+      "events": 1000,
+      "generation_s": 24.335642820980866,
+      "index_build_s": 0.01918653500615619,
+      "find_s": 0.05813405502703972,
+      "candidates": 32651,
+      "pairs": 17922,
+      "candidate_rejection": 0.9346326326326326,
+      "pair_rejection": 0.9641201201201202,
+      "retained_probability_mean": 0.9997649134200001,
+      "retained_probability_min": 0.9987004000000002
+    },
+    {
+      "ntrial": [
+        5,
+        10
+      ],
+      "subdivisions": [
+        0,
+        2
+      ],
+      "block_order": [
+        0,
+        1
+      ],
+      "events": 1000,
+      "generation_s": 24.335642820980866,
+      "index_build_s": 0.03296099600265734,
+      "find_s": 0.0632593070040457,
+      "candidates": 26719,
+      "pairs": 17922,
+      "candidate_rejection": 0.9465085085085085,
+      "pair_rejection": 0.9641201201201202,
+      "retained_probability_mean": 0.9997649134200001,
+      "retained_probability_min": 0.9987004000000002
+    },
+    {
+      "ntrial": [
+        5,
+        10
+      ],
+      "subdivisions": [
+        0,
+        2
+      ],
+      "block_order": [
+        1,
+        0
+      ],
+      "events": 1000,
+      "generation_s": 24.335642820980866,
+      "index_build_s": 0.033809608983574435,
+      "find_s": 0.06250381201971322,
+      "candidates": 26719,
+      "pairs": 17922,
+      "candidate_rejection": 0.9465085085085085,
+      "pair_rejection": 0.9641201201201202,
+      "retained_probability_mean": 0.9997649134200001,
+      "retained_probability_min": 0.9987004000000002
+    },
+    {
+      "ntrial": [
+        5,
+        10
+      ],
+      "subdivisions": [
+        0,
+        3
+      ],
+      "block_order": [
+        0,
+        1
+      ],
+      "events": 1000,
+      "generation_s": 24.335642820980866,
+      "index_build_s": 0.048903604998486117,
+      "find_s": 0.08109067700570449,
+      "candidates": 23924,
+      "pairs": 17922,
+      "candidate_rejection": 0.9521041041041041,
+      "pair_rejection": 0.9641201201201202,
+      "retained_probability_mean": 0.9997649134200001,
+      "retained_probability_min": 0.9987004000000002
+    },
+    {
+      "ntrial": [
+        5,
+        10
+      ],
+      "subdivisions": [
+        0,
+        3
+      ],
+      "block_order": [
+        1,
+        0
+      ],
+      "events": 1000,
+      "generation_s": 24.335642820980866,
+      "index_build_s": 0.055142285011243075,
+      "find_s": 0.07511184000759386,
+      "candidates": 23924,
+      "pairs": 17922,
+      "candidate_rejection": 0.9521041041041041,
+      "pair_rejection": 0.9641201201201202,
+      "retained_probability_mean": 0.9997649134200001,
+      "retained_probability_min": 0.9987004000000002
+    }
+  ],
+  "volume_ratio_median_per_block": [
+    0.931733887884396,
+    0.8493312439994913
+  ],
+  "volume_ratio_mean_per_block": [
+    0.9197410362331916,
+    0.8030694241959578
+  ],
+  "note": "Second-block random sequences differ because first-block trial counts differ."
+}

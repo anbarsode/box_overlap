@@ -1,0 +1,36 @@
+{
+  "pairs": 1000,
+  "bins": 24,
+  "seed": 91,
+  "ntrial": [
+    5,
+    10
+  ],
+  "n_centers": [
+    4,
+    8
+  ],
+  "positive_boxes": 718,
+  "positive_histograms": 729,
+  "retained_probability_mean": 0.9997672133000001,
+  "checker_agrees_with_index_first_pairs": 20,
+  "all_integrals_agree_with_1v1": true,
+  "fits": {
+    "fit_pairs": 710,
+    "fits": [
+      {
+        "degree": 1,
+        "coefficients": [
+          0.6346165638050364,
+          0.12024090971689251
+        ],
+        "rms_log10_residual": 0.3493308112819233
+      }
+    ],
+    "x_min": 3.895803886976113e-06,
+    "x_max": 217.95195834132713,
+    "pairs": 1000
+  },
+  "histograms_agree_with_numpy_first_pairs": 20,
+  "saved_box_batch_roundtrip_pairs": 1000
+}
