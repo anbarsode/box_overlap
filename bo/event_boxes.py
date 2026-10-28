@@ -174,40 +174,64 @@ def make_boxes(
     weight_function: WeightFunction | None = None,
     sort_dimension: int = 0,
 ) -> BoxSet:
-    """Build occupied boxes for one probability block.
-
-    Parameters
-    ----------
-    samples:
-        All joint samples, with shape ``(n_samples, dimension)``.
-    centers:
-        Randomly chosen rows of ``samples``. Their sorted coordinates set
-        midpoint separators independently in each dimension.
-    weight_function:
-        Optional function accepting box centers of shape ``(n_boxes, dimension)``
-        and returning one weight per box. The current default is one everywhere.
-
-    sort_dimension:
-        Coordinate whose lower bounds order the final boxes; defaults to zero.
-
-    Only occupied cells are constructed. Single-sample cells are discarded;
-    the other boxes are shrunk to the minimum and maximum coordinates of their
-    assigned samples. The work therefore scales mainly with the number of
-    samples, not the potentially large full grid.
-    """
+    """Build occupied boxes, using grid bounds for collapsed dimensions."""
     samples = np.asarray(samples, dtype=np.float64)
     centers = np.asarray(centers, dtype=np.float64)
+
+    if samples.ndim != 2 or len(samples) == 0:
+        raise ValueError("samples must be a non-empty 2D array")
+    if not np.isfinite(samples).all():
+        raise ValueError("samples must contain only finite values")
+    if centers.ndim != 2 or centers.shape[1] != samples.shape[1]:
+        raise ValueError("centers must have the same coordinate dimension as samples")
+    if not np.isfinite(centers).all():
+        raise ValueError("centers must contain only finite values")
+
     edges = _make_grid_edges(samples, centers)
     counts, sample_lower, sample_upper = _occupied_cell_bounds(samples, edges)
+
+    # Identify each occupied cell in the same order as _occupied_cell_bounds.
+    cell_index = [
+        np.searchsorted(axis_edges[1:-1], samples[:, j], side="right")
+        for j, axis_edges in enumerate(edges)
+    ]
+    grid_shape = tuple(len(axis_edges) - 1 for axis_edges in edges)
+    flat_index = np.ravel_multi_index(cell_index, grid_shape)
+    order = np.argsort(flat_index)
+    sorted_index = flat_index[order]
+    starts = np.flatnonzero(
+        np.r_[True, sorted_index[1:] != sorted_index[:-1]]
+    )
+    occupied_flat = sorted_index[starts]
+
     keep = counts > 1
-    lower = sample_lower[keep]
-    upper = sample_upper[keep]
     counts = counts[keep]
+    lower = sample_lower[keep].copy()
+    upper = sample_upper[keep].copy()
+    occupied_cells = np.array(
+        np.unravel_index(occupied_flat[keep], grid_shape)
+    ).T
+
+    # A collapsed sample range is expanded to its original grid-cell extent.
+    for i, cell in enumerate(occupied_cells):
+        for j, axis_edges in enumerate(edges):
+            if upper[i, j] <= lower[i, j]:
+                lower[i, j] = axis_edges[cell[j]]
+                upper[i, j] = axis_edges[cell[j] + 1]
+
     volume = np.prod(upper - lower, axis=1)
+    if not np.isfinite(volume).all() or np.any(volume <= 0):
+        raise ValueError(
+            "Non-positive box volume remains after fallback to grid bounds."
+        )
+
     density = counts / (len(samples) * volume)
     box_centers = lower + (upper - lower) / 2
-    weight = (np.ones(len(lower), dtype=np.float64) if weight_function is None else
-              np.asarray(weight_function(box_centers), dtype=np.float64))
+    weight = (
+        np.ones(len(lower), dtype=np.float64)
+        if weight_function is None
+        else np.asarray(weight_function(box_centers), dtype=np.float64)
+    )
     return BoxSet(lower, upper, density, weight, sort_dimension)
 
 
