@@ -482,16 +482,18 @@ def test_trial_selection():
         expected = make_box_trials(samples[:, dimensions], ncenters, trials, rng)
         np.testing.assert_array_equal(block.rows(), expected.boxes.rows())
 
-
-def test_degenerate_volume_is_visible():
-    """Do not silently fix a retained box with zero width in one coordinate."""
+def test_degenerate_volume_is_rejected():
+    """Reject a box if its volume remains zero after grid-boundary fallback."""
     samples = np.array([[0., 0.], [0., 1.]])
-    with np.errstate(divide='ignore', invalid='ignore'):
-        boxes = make_boxes(samples, samples[:1])
-        assert boxes.n_boxes == 1
-        assert np.isinf(boxes.density[0])
-        assert np.isnan(boxes.retained_probability)
 
+    try:
+        make_boxes(samples, samples[:1])
+    except ValueError as exc:
+        assert "Non-positive box volume" in str(exc)
+    else:
+        raise AssertionError(
+            "Expected make_boxes to reject a zero-volume box."
+        )
 
 
 def main():
@@ -540,7 +542,7 @@ def main():
 
     # These are the repository's algorithm/regression tests. Keep them running
     # regardless of which event data files are supplied.
-    test_degenerate_volume_is_visible()
+    test_degenerate_volume_is_rejected()
     test_trial_selection()
     test_known_grid()
     test_against_explicit_full_grid()
